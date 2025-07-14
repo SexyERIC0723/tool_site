@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>Solana 工具站</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <!-- 顶部导航 -->
+  <nav>
+    <a href="#gen">生成钱包</a>
+    <a href="#manage">管理钱包</a>
+    <a href="#buy">批量购买</a>
+  </nav>
+
+  <main>
+    <h2>Solana 工具站</h2>
+
+    <button id="loginBtn">连接钱包 / 登录</button>
+    <div id="alert"></div>
+
+    <!-- 生成 -->
+    <span id="gen" class="anchor"></span>
+    <section>
+      <h3>批量生成钱包</h3>
+      <form id="genForm">
+        <label>数量:<input name="num" type="number" value="10" min="1" required /></label>
+        <label>最小间隔(s):<input name="min_delay" type="number" value="0.1" step="0.1" required /></label>
+        <label>最大间隔(s):<input name="max_delay" type="number" value="0.5" step="0.1" required /></label>
+        <label>线程:<input name="workers" type="number" value="4" min="1" required /></label>
+        <button type="submit" id="submitBtn">开始生成</button>
+        <span id="spin" hidden>⏳</span>
+      </form>
+      <h4 id="status"></h4>
+      <div id="result"></div>
+    </section>
+
+    <!-- 历史 -->
+    <span id="manage" class="anchor"></span>
+    <section>
+      <h3>历史记录 / 管理钱包</h3>
+      <div id="history"></div>
+    </section>
+
+    <!-- 批量购买占位 -->
+    <span id="buy" class="anchor"></span>
+    <section>
+      <h3>批量购买（开发中）</h3>
+      <p class="muted">后续将在此处接入 Mint 或二级市场批量购置功能…</p>
+    </section>
+  </main>
+
+  <!-- 业务脚本 -->
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>
