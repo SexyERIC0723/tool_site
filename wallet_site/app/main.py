@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Form, BackgroundTasks, Depends, HTTPException, UploadFile, File
+from pydantic import BaseModel
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
@@ -14,13 +15,17 @@ from app.auth import (
 from app.service import list_jobs_by_user
 from app.wallet_service import (
     import_wallets_from_json, get_user_wallets, export_wallets,
-    query_balances, delete_wallets
+    query_balances, delete_wallets, update_wallet_name
 )
 from app.models import Wallet
 
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="Solana Wallet Generator")
+
+
+class WalletName(BaseModel):
+    name: str
 
 # ---------- 工具：把目录打成 zip ----------
 def _zip_dir(dir_path: Path):
@@ -190,3 +195,17 @@ def api_delete_wallets(
         "status": "success",
         "deleted": count
     }
+
+
+@app.put("/api/wallets/{wallet_id}")
+def api_update_wallet_name(
+    wallet_id: int,
+    data: WalletName,
+    user: str = Depends(current_user)
+):
+    """更新钱包名称"""
+    try:
+        update_wallet_name(wallet_id, user, data.name)
+    except ValueError:
+        raise HTTPException(404, "wallet not found")
+    return {"status": "success"}

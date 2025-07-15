@@ -178,3 +178,8 @@ input[type="checkbox"] {
   font-weight: 600;
   color: #4caf50;
 }
+
+.wallet-name {
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
