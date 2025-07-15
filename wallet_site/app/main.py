@@ -1,8 +1,9 @@
-from fastapi import FastAPI, Form, BackgroundTasks, Depends, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, Form, BackgroundTasks, Depends, HTTPException, UploadFile, File
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
-import zipfile, logging
+import zipfile, logging, json
+from typing import List
 
 from app.generator import generate_wallets
 from app.auth import (
@@ -11,6 +12,12 @@ from app.auth import (
 )
 
 from app.service import list_jobs_by_user
+from app.wallet_service import (
+    import_wallets_from_json, get_user_wallets, export_wallets,
+    query_balances, delete_wallets
+)
+from app.models import Wallet
+
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="Solana Wallet Generator")
@@ -84,3 +91,102 @@ def dl(job_id: str, user: str = Depends(current_user)):
         raise HTTPException(404, "job_id not found")
     zip_path = _zip_dir(Path(jobs[job_id].path))
     return FileResponse(zip_path, filename=zip_path.name, media_type="application/zip")
+
+# ---------- 钱包管理 API ----------
+@app.post("/api/wallets/import")
+async def api_import_wallets(
+    file: UploadFile = File(...),
+    user: str = Depends(current_user)
+):
+    """导入钱包文件（JSON格式）"""
+    if not file.filename.endswith('.json'):
+        raise HTTPException(400, "只支持 JSON 文件")
+    
+    try:
+        content = await file.read()
+        file_content = content.decode('utf-8')
+        imported = import_wallets_from_json(file_content, user)
+        
+        return {
+            "status": "success",
+            "imported": len([w for w in imported if w.get("status") == "success"]),
+            "failed": len([w for w in imported if w.get("status") == "error"]),
+            "details": imported
+        }
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logging.error(f"导入钱包失败: {e}")
+        raise HTTPException(500, "导入失败")
+
+@app.get("/api/wallets")
+def api_get_wallets(user: str = Depends(current_user)):
+    """获取用户的所有钱包"""
+    wallets = get_user_wallets(user)
+    return [
+        {
+            "id": w.id,
+            "public_key": w.public_key,
+            "name": w.name,
+            "source": w.source,
+            "created": w.created.isoformat(timespec="seconds"),
+            "balance": w.balance,
+            "last_checked": w.last_checked.isoformat(timespec="seconds") if w.last_checked else None
+        }
+        for w in wallets
+    ]
+
+@app.post("/api/wallets/export")
+def api_export_wallets(
+    wallet_ids: List[int],
+    user: str = Depends(current_user)
+):
+    """导出选中的钱包"""
+    if not wallet_ids:
+        raise HTTPException(400, "请选择要导出的钱包")
+    
+    export_data = export_wallets(wallet_ids, user)
+    
+    # 返回 JSON 文件
+    return JSONResponse(
+        content=export_data,
+        headers={
+            "Content-Disposition": f"attachment; filename=wallets_export_{len(export_data)}.json"
+        }
+    )
+
+@app.post("/api/wallets/balances")
+async def api_query_balances(
+    wallet_ids: List[int],
+    user: str = Depends(current_user)
+):
+    """查询选中钱包的余额"""
+    if not wallet_ids:
+        raise HTTPException(400, "请选择要查询的钱包")
+    
+    balances = await query_balances(wallet_ids, user)
+    
+    # 计算总余额
+    total = sum(b for b in balances.values() if b is not None)
+    
+    return {
+        "balances": balances,
+        "total": total,
+        "count": len(balances)
+    }
+
+@app.delete("/api/wallets")
+def api_delete_wallets(
+    wallet_ids: List[int],
+    user: str = Depends(current_user)
+):
+    """删除选中的钱包"""
+    if not wallet_ids:
+        raise HTTPException(400, "请选择要删除的钱包")
+    
+    count = delete_wallets(wallet_ids, user)
+    
+    return {
+        "status": "success",
+        "deleted": count
+    }

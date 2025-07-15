@@ -35,10 +35,36 @@
       <div id="result"></div>
     </section>
 
-    <!-- 历史 -->
+    <!-- 管理钱包 -->
     <span id="manage" class="anchor"></span>
     <section>
-      <h3>历史记录 / 管理钱包</h3>
+      <h3>管理钱包</h3>
+      
+      <!-- 总余额显示 -->
+      <div id="totalBalanceBox" class="balance-box" style="display: none;">
+        <div class="balance-label">钱包总余额</div>
+        <div class="balance-value">
+          <span id="totalBalance">0.0000</span> SOL
+        </div>
+        <div class="balance-info">
+          共 <span id="walletCount">0</span> 个钱包 | 最后更新：<span id="lastUpdate">-</span>
+        </div>
+      </div>
+      
+      <!-- 操作按钮 -->
+      <div id="walletActions" class="wallet-actions">
+        <button id="importBtn" class="action-btn">📥 导入钱包</button>
+        <button id="exportBtn" class="action-btn" disabled>📤 导出选中</button>
+        <button id="balanceBtn" class="action-btn" disabled>💰 查询余额</button>
+        <button id="deleteBtn" class="action-btn delete-btn" disabled>🗑️ 删除选中</button>
+        <input type="file" id="importFile" accept=".json" style="display: none;">
+      </div>
+      
+      <!-- 钱包列表 -->
+      <div id="walletList"></div>
+      
+      <!-- 历史记录 -->
+      <h4>生成历史</h4>
       <div id="history"></div>
     </section>
 

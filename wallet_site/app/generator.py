@@ -1,7 +1,8 @@
 from pathlib import Path
 from bulk_generate import batch_generate
 from app.service import add_job
-import uuid, tempfile
+from app.wallet_service import add_wallet
+import uuid, tempfile, json, base58
 
 def generate_wallets(args: dict, owner: str):
     """
@@ -18,6 +19,24 @@ def generate_wallets(args: dict, owner: str):
         workers=args["workers"],
         out_dir=str(out_dir),
     )
+
+    # 将生成的钱包保存到数据库
+    for idx, pubkey in enumerate(pubkeys):
+        # 读取生成的钱包文件
+        info_file = out_dir / f"wallet_{idx}_info.json"
+        if info_file.exists():
+            with open(info_file, 'r') as f:
+                wallet_info = json.load(f)
+                secret_key_b58 = wallet_info.get("secret_key_base58")
+                
+                # 保存到数据库
+                add_wallet(
+                    public_key=pubkey,
+                    secret_key=secret_key_b58,
+                    owner=owner,
+                    name=f"Generated #{idx+1}",
+                    source="generated"
+                )
 
     add_job(job_id, out_dir, len(pubkeys), args, owner)
     return job_id, pubkeys, out_dir            # ★ 现在返回 3 个值
