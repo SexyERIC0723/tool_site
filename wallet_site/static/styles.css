@@ -1,9 +1,14 @@
-:root { --nav-h: 48px; }
+:root {
+  --nav-h: 48px;
+  --primary-color: #4caf50;
+  --primary-hover: #45a049;
+  --accent-color: #2196f3;
+}
 
 * { box-sizing: border-box; }
 
 body {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', Arial, Helvetica, sans-serif;
   margin: 0;
   padding-top: var(--nav-h);
   background: #fafafa;
@@ -13,7 +18,7 @@ nav {
   position: fixed;
   inset: 0 0 auto 0;
   height: var(--nav-h);
-  background: #333;
+  background: linear-gradient(90deg, #333, #444);
   display: flex;
   align-items: center;
   padding: 0 24px;
@@ -36,6 +41,13 @@ main {
   padding: 0 24px;
 }
 
+.card {
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
 input { width: 90px; margin-right: 12px; }
 
 button {
@@ -45,13 +57,14 @@ button {
   cursor: pointer;
   color: #fff;
   transition: 0.3s;
+  background: var(--primary-color);
 }
-
-button { background: #4caf50; }
-button:hover:not(:disabled) { background: #45a049; }
+button:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
 button:disabled { opacity: .5; cursor: not-allowed; }
 
-#loginBtn { background: #2196f3; margin-bottom: 14px; }
+#loginBtn { background: var(--accent-color); margin-bottom: 14px; }
 #loginBtn.connected { background: #555; }
 
 table { border-collapse: collapse; width: 100%; margin-top: 20px; }

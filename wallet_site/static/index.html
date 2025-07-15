@@ -2,7 +2,11 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Solana 工具站</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
@@ -21,7 +25,7 @@
 
     <!-- 生成 -->
     <span id="gen" class="anchor"></span>
-    <section>
+    <section class="card">
       <h3>批量生成钱包</h3>
       <form id="genForm">
         <label>数量:<input name="num" type="number" value="10" min="1" required /></label>
@@ -37,7 +41,7 @@
 
     <!-- 管理钱包 -->
     <span id="manage" class="anchor"></span>
-    <section>
+    <section class="card">
       <h3>管理钱包</h3>
       
       <!-- 总余额显示 -->
@@ -70,7 +74,7 @@
 
     <!-- 批量购买占位 -->
     <span id="buy" class="anchor"></span>
-    <section>
+    <section class="card">
       <h3>批量购买（开发中）</h3>
       <p class="muted">后续将在此处接入 Mint 或二级市场批量购置功能…</p>
     </section>
