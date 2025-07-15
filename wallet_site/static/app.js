@@ -183,7 +183,7 @@ const loadWallets = async () => {
           <tr>
             <td><input type="checkbox" class="wallet-select" value="${w.id}"></td>
             <td>${w.public_key}</td>
-            <td>${w.name || '-'}</td>
+            <td><span class="wallet-name" data-id="${w.id}">${w.name || '-'}</span></td>
             <td>${w.source}</td>
             <td>${w.balance !== null ? w.balance.toFixed(4) : '-'}</td>
             <td>${new Date(w.created).toLocaleString()}</td>
@@ -202,6 +202,27 @@ const loadWallets = async () => {
   // 单选功能
   $$('.wallet-select').forEach(cb => {
     cb.onchange = updateSelectedWallets;
+  });
+
+  // 编辑名称
+  $$('.wallet-name').forEach(span => {
+    span.onclick = async () => {
+      const id = span.dataset.id;
+      const current = span.textContent === '-' ? '' : span.textContent;
+      const name = prompt('输入新的名称', current);
+      if (name === null) return;
+      try {
+        const r = await authFetch(`/api/wallets/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name })
+        });
+        if (!r.ok) throw new Error('更新失败');
+        span.textContent = name || '-';
+      } catch (e) {
+        alertMsg(e.message);
+      }
+    };
   });
 };
 
