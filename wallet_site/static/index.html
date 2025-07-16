@@ -12,81 +12,186 @@
 <body>
   <!-- 顶部导航 -->
   <nav>
-    <a href="#gen">生成钱包</a>
-    <a href="#manage">管理钱包</a>
-    <a href="#buy">批量购买</a>
+    <div class="nav-brand">
+      <h2>Solana 工具站</h2>
+    </div>
+    <div class="nav-links">
+      <a href="#" data-page="generate" class="nav-link active">🔧 生成钱包</a>
+      <a href="#" data-page="manage" class="nav-link">💼 管理钱包</a>
+      <a href="#" data-page="buy" class="nav-link">🛒 批量购买</a>
+    </div>
+    <button id="loginBtn" class="login-btn">连接钱包 / 登录</button>
   </nav>
 
   <main>
-    <h2>Solana 工具站</h2>
-
-    <button id="loginBtn">连接钱包 / 登录</button>
     <div id="alert"></div>
 
-    <!-- 生成 -->
-    <span id="gen" class="anchor"></span>
-    <section class="card">
-      <h3>批量生成钱包</h3>
-      <form id="genForm">
-        <label>数量:<input name="num" type="number" value="10" min="1" required /></label>
-        <label>最小间隔(s):<input name="min_delay" type="number" value="0.1" step="0.1" required /></label>
-        <label>最大间隔(s):<input name="max_delay" type="number" value="0.5" step="0.1" required /></label>
-        <label>线程:<input name="workers" type="number" value="4" min="1" required /></label>
-        <button type="submit" id="submitBtn">开始生成</button>
-        <span id="spin" hidden>⏳</span>
-      </form>
-      <h4 id="status"></h4>
-      <div id="result"></div>
-    </section>
+    <!-- 生成钱包页面 -->
+    <div id="generatePage" class="page active">
+      <div class="page-header">
+        <h1>钱包生成器</h1>
+        <p class="page-description">批量生成 Solana 钱包，支持 solana-keygen 和 Phantom 双格式</p>
+      </div>
 
-    <!-- 管理钱包 -->
-    <span id="manage" class="anchor"></span>
-    <section class="card">
-      <h3>管理钱包</h3>
-      
+      <!-- 生成表单 -->
+      <section class="card">
+        <h3>🔧 批量生成设置</h3>
+        <form id="genForm" class="gen-form">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>生成数量</label>
+              <input name="num" type="number" value="10" min="1" max="1000" required />
+              <small>建议单次不超过 100 个</small>
+            </div>
+            <div class="form-group">
+              <label>最小间隔(秒)</label>
+              <input name="min_delay" type="number" value="0.1" step="0.1" min="0" required />
+              <small>防止过快生成</small>
+            </div>
+            <div class="form-group">
+              <label>最大间隔(秒)</label>
+              <input name="max_delay" type="number" value="0.5" step="0.1" min="0" required />
+              <small>随机延迟上限</small>
+            </div>
+            <div class="form-group">
+              <label>并发线程</label>
+              <input name="workers" type="number" value="4" min="1" max="16" required />
+              <small>建议 4-8 个线程</small>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" id="submitBtn" class="primary-btn">
+              <span class="btn-icon">🚀</span>
+              开始生成
+            </button>
+            <span id="spin" hidden class="loading-indicator">⏳ 生成中...</span>
+          </div>
+        </form>
+      </section>
+
+      <!-- 生成结果 -->
+      <section class="card" id="resultSection" style="display: none;">
+        <h3 id="status">🎉 生成完成</h3>
+        <div id="result"></div>
+      </section>
+
+      <!-- 生成历史 -->
+      <section class="card">
+        <h3>📜 生成历史</h3>
+        <div id="history"></div>
+      </section>
+    </div>
+
+    <!-- 管理钱包页面 -->
+    <div id="managePage" class="page">
+      <div class="page-header">
+        <h1>钱包管理中心</h1>
+        <p class="page-description">管理你的所有钱包，查询余额，导入导出操作</p>
+      </div>
+
       <!-- 总余额显示 -->
       <div id="totalBalanceBox" class="balance-box" style="display: none;">
-        <div class="balance-label">钱包总余额</div>
-        <div class="balance-value">
-          <span id="totalBalance">0.0000</span> SOL
-        </div>
-        <div class="balance-info">
-          共 <span id="walletCount">0</span> 个钱包 | 最后更新：<span id="lastUpdate">-</span>
+        <div class="balance-content">
+          <div class="balance-main">
+            <div class="balance-label">💰 钱包总余额</div>
+            <div class="balance-value">
+              <span id="totalBalance">0.0000</span>
+              <span class="balance-unit">SOL</span>
+            </div>
+          </div>
+          <div class="balance-stats">
+            <div class="stat-item">
+              <span class="stat-label">钱包数量</span>
+              <span class="stat-value" id="walletCount">0</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">最后更新</span>
+              <span class="stat-value" id="lastUpdate">-</span>
+            </div>
+          </div>
         </div>
       </div>
-      
-      <!-- 操作按钮 -->
-      <div id="walletActions" class="wallet-actions">
-        <button id="importBtn" class="action-btn">📥 导入钱包</button>
-        <button id="exportBtn" class="action-btn" disabled>📤 导出选中</button>
-        <button id="balanceBtn" class="action-btn" disabled>💰 查询余额</button>
-        <button id="deleteBtn" class="action-btn delete-btn" disabled>🗑️ 删除选中</button>
-      </div>
-      
-      <!-- 钱包列表 -->
-      <div id="walletList"></div>
-      
-      <!-- 历史记录 -->
-      <h4>生成历史</h4>
-      <div id="history"></div>
-    </section>
 
-    <!-- 批量购买占位 -->
-    <span id="buy" class="anchor"></span>
-    <section class="card">
-      <h3>批量购买（开发中）</h3>
-      <p class="muted">后续将在此处接入 Mint 或二级市场批量购置功能…</p>
-    </section>
+      <!-- 钱包操作面板 -->
+      <section class="card">
+        <div class="panel-header">
+          <h3>🛠️ 钱包操作</h3>
+          <div id="walletActions" class="wallet-actions">
+            <button id="importBtn" class="action-btn import-btn">
+              <span class="btn-icon">📥</span>
+              导入钱包
+            </button>
+            <button id="exportBtn" class="action-btn export-btn" disabled>
+              <span class="btn-icon">📤</span>
+              导出选中
+            </button>
+            <button id="balanceBtn" class="action-btn balance-btn" disabled>
+              <span class="btn-icon">💰</span>
+              查询余额
+            </button>
+            <button id="deleteBtn" class="action-btn delete-btn" disabled>
+              <span class="btn-icon">🗑️</span>
+              删除选中
+            </button>
+          </div>
+        </div>
+
+        <!-- 钱包列表 -->
+        <div id="walletList" class="wallet-list"></div>
+      </section>
+    </div>
+
+    <!-- 批量购买页面 -->
+    <div id="buyPage" class="page">
+      <div class="page-header">
+        <h1>批量购买功能</h1>
+        <p class="page-description">快速批量购买 NFT 和代币（开发中）</p>
+      </div>
+
+      <section class="card coming-soon">
+        <div class="coming-soon-content">
+          <div class="coming-soon-icon">🚧</div>
+          <h3>功能开发中</h3>
+          <p>我们正在开发批量购买功能，将支持：</p>
+          <ul class="feature-list">
+            <li>🎨 NFT 批量 Mint</li>
+            <li>💎 二级市场批量购买</li>
+            <li>⚡ 闪电交易执行</li>
+            <li>📊 实时价格监控</li>
+            <li>🔄 自动重试机制</li>
+          </ul>
+          <p class="coming-soon-note">敬请期待，预计下个版本发布！</p>
+        </div>
+      </section>
+    </div>
   </main>
 
   <!-- 导入钱包弹窗 -->
   <div id="importModal" class="modal" hidden>
     <div class="modal-content">
-      <h3>导入私钥（每行一个 JSON，或拖拽文件）</h3>
-      <textarea id="importTextarea" placeholder="粘贴内容或拖入文件"></textarea>
-      <div class="modal-buttons">
-        <button id="importConfirm">导入</button>
-        <button id="importCancel" class="delete-btn">取消</button>
+      <div class="modal-header">
+        <h3>📥 导入钱包</h3>
+        <button class="modal-close" id="modalClose">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-description">支持导入 solana-keygen 格式或扩展格式的钱包文件</p>
+        <textarea id="importTextarea" placeholder="粘贴私钥 JSON 内容，或拖拽文件到此处...
+
+支持格式：
+1. solana-keygen 格式：[私钥字节数组]
+2. 扩展格式：{&quot;secret_key&quot;: [...], &quot;public_key&quot;: &quot;...&quot;}
+3. 批量格式：[钱包1, 钱包2, ...]"></textarea>
+        <div class="file-drop-hint">
+          <span class="drop-icon">📁</span>
+          拖拽 .json 文件到上方文本框
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="importConfirm" class="modal-btn primary">
+          <span class="btn-icon">📥</span>
+          开始导入
+        </button>
+        <button id="importCancel" class="modal-btn secondary">取消</button>
       </div>
     </div>
   </div>
