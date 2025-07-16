@@ -8,6 +8,278 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    /* 转账页面专用样式 */
+    .transfer-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 0;
+    }
+
+    .tab-btn {
+      background: #f5f5f5;
+      color: var(--text-secondary);
+      border: 2px solid var(--border-color);
+      padding: 12px 20px;
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+      font-weight: 500;
+      transition: var(--transition);
+      flex: 1;
+    }
+
+    .tab-btn.active {
+      background: white;
+      color: var(--accent-color);
+      border-color: var(--accent-color);
+      border-bottom-color: white;
+    }
+
+    .tab-btn:hover:not(.active) {
+      background: #eee;
+    }
+
+    .transfer-content {
+      display: none;
+    }
+
+    .transfer-content.active {
+      display: block;
+    }
+
+    .transfer-form {
+      margin-bottom: 24px;
+    }
+
+    .full-width {
+      grid-column: 1 / -1;
+    }
+
+    .validation-info {
+      margin-top: 8px;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .validation-info.valid {
+      background: #e8f5e8;
+      color: #2e7d32;
+      border: 1px solid #81c784;
+    }
+
+    .validation-info.invalid {
+      background: #ffebee;
+      color: #c62828;
+      border: 1px solid #e57373;
+    }
+
+    .validation-info.loading {
+      background: #e3f2fd;
+      color: #1976d2;
+      border: 1px solid #90caf9;
+    }
+
+    .transfer-preview {
+      background: #f8f9fa;
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+
+    .transfer-preview h4 {
+      margin: 0 0 16px 0;
+      color: var(--text-primary);
+      font-size: 16px;
+    }
+
+    .preview-content, .batch-preview-summary {
+      display: grid;
+      gap: 12px;
+    }
+
+    .preview-item, .summary-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    .preview-item:last-child, .summary-item:last-child {
+      border-bottom: none;
+    }
+
+    .preview-item .label, .summary-item .label {
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .preview-item .value, .summary-item .value {
+      font-family: monospace;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .preview-item .value.highlight, .summary-item .value.highlight {
+      color: var(--accent-color);
+    }
+
+    .preview-item .value.total, .summary-item .value.total {
+      color: var(--primary-color);
+      font-size: 18px;
+    }
+
+    .wallet-selection {
+      margin: 24px 0;
+    }
+
+    .wallet-selection h4 {
+      margin: 0 0 16px 0;
+      color: var(--text-primary);
+    }
+
+    .batch-wallet-list {
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      background: white;
+    }
+
+    .batch-wallet-item {
+      display: flex;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid #f0f0f0;
+      transition: var(--transition);
+    }
+
+    .batch-wallet-item:last-child {
+      border-bottom: none;
+    }
+
+    .batch-wallet-item:hover {
+      background: #f8f9fa;
+    }
+
+    .batch-wallet-item input[type="checkbox"] {
+      margin-right: 12px;
+    }
+
+    .wallet-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .wallet-address {
+      font-family: monospace;
+      font-size: 12px;
+      color: var(--text-secondary);
+      word-break: break-all;
+    }
+
+    .wallet-name {
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 2px;
+    }
+
+    .wallet-balance {
+      font-family: monospace;
+      font-weight: 600;
+      color: var(--success-color);
+      margin-left: 12px;
+      font-size: 13px;
+    }
+
+    .batch-preview-details {
+      margin-top: 20px;
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+    }
+
+    .batch-detail-item {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      gap: 12px;
+      padding: 8px 12px;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 12px;
+      align-items: center;
+    }
+
+    .batch-detail-item:last-child {
+      border-bottom: none;
+    }
+
+    .batch-detail-item.insufficient {
+      background: #fff3e0;
+      color: #e65100;
+    }
+
+    .secondary-btn {
+      background: #f5f5f5;
+      color: var(--text-primary);
+      border: 2px solid var(--border-color);
+    }
+
+    .secondary-btn:hover {
+      background: #eee;
+      border-color: var(--accent-color);
+    }
+
+    .warning-banner {
+      background: linear-gradient(135deg, #ff9800, #f57c00);
+      color: white;
+      padding: 16px 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .warning-banner .icon {
+      font-size: 20px;
+    }
+
+    .warning-banner .content {
+      flex: 1;
+    }
+
+    .warning-banner .title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .warning-banner .text {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+
+    /* 响应式 */
+    @media (max-width: 768px) {
+      .transfer-tabs {
+        flex-direction: column;
+      }
+
+      .batch-detail-item {
+        grid-template-columns: 1fr;
+        gap: 4px;
+      }
+
+      .preview-item, .summary-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+    }
+  </style>
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -18,6 +290,7 @@
     <div class="nav-links">
       <a href="#" data-page="generate" class="nav-link active">🔧 生成钱包</a>
       <a href="#" data-page="manage" class="nav-link">💼 管理钱包</a>
+      <a href="#" data-page="transfer" class="nav-link">💸 转账功能</a>
       <a href="#" data-page="buy" class="nav-link">🛒 批量购买</a>
     </div>
     <button id="loginBtn" class="login-btn">连接钱包 / 登录</button>
@@ -141,6 +414,211 @@
       </section>
     </div>
 
+    <!-- 转账功能页面 -->
+    <div id="transferPage" class="page">
+      <div class="page-header">
+        <h1>转账功能</h1>
+        <p class="page-description">支持单笔转账和批量转账，安全快捷</p>
+      </div>
+
+      <!-- 转账类型切换 -->
+      <section class="card">
+        <div class="transfer-tabs">
+          <button class="tab-btn active" data-tab="single">
+            <span class="btn-icon">💰</span>
+            单笔转账
+          </button>
+          <button class="tab-btn" data-tab="batch">
+            <span class="btn-icon">📤</span>
+            批量转账
+          </button>
+        </div>
+      </section>
+
+      <!-- 单笔转账 -->
+      <div id="singleTransfer" class="transfer-content active">
+        <section class="card">
+          <h3>💰 单笔转账</h3>
+          <form id="singleTransferForm" class="transfer-form">
+            <div class="form-grid">
+              <div class="form-group full-width">
+                <label>发送方钱包</label>
+                <select id="fromWalletSelect" name="from_address" required>
+                  <option value="">请选择钱包...</option>
+                </select>
+                <small>选择您要从中转账的钱包</small>
+              </div>
+              <div class="form-group full-width">
+                <label>接收方地址</label>
+                <input type="text" name="to_address" id="toAddressInput" placeholder="输入接收方Solana地址..." required />
+                <div id="addressValidation" class="validation-info" style="display: none;"></div>
+                <small>请仔细核对接收方地址，转账后无法撤销</small>
+              </div>
+              <div class="form-group">
+                <label>转账金额 (SOL)</label>
+                <input type="number" name="amount" step="0.000001" min="0.000001" placeholder="0.000000" required />
+                <small>最小转账金额：0.000001 SOL</small>
+              </div>
+              <div class="form-group">
+                <label>手续费 (SOL)</label>
+                <input type="text" id="feeDisplay" readonly placeholder="计算中..." />
+                <small>Solana网络手续费</small>
+              </div>
+              <div class="form-group full-width">
+                <label>备注 (可选)</label>
+                <input type="text" name="memo" placeholder="转账备注..." maxlength="100" />
+                <small>最多100个字符，将记录在区块链上</small>
+              </div>
+            </div>
+          </form>
+
+          <!-- 转账预览 -->
+          <div id="transferPreview" class="transfer-preview" style="display: none;">
+            <h4>🔍 转账预览</h4>
+            <div class="preview-content">
+              <div class="preview-item">
+                <span class="label">发送方：</span>
+                <span class="value" id="previewFrom"></span>
+              </div>
+              <div class="preview-item">
+                <span class="label">接收方：</span>
+                <span class="value" id="previewTo"></span>
+              </div>
+              <div class="preview-item">
+                <span class="label">转账金额：</span>
+                <span class="value highlight" id="previewAmount"></span>
+              </div>
+              <div class="preview-item">
+                <span class="label">手续费：</span>
+                <span class="value" id="previewFee"></span>
+              </div>
+              <div class="preview-item">
+                <span class="label">总计：</span>
+                <span class="value total" id="previewTotal"></span>
+              </div>
+              <div class="preview-item">
+                <span class="label">剩余余额：</span>
+                <span class="value" id="previewRemaining"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" id="previewTransferBtn" class="secondary-btn">
+              <span class="btn-icon">🔍</span>
+              预览转账
+            </button>
+            <button type="button" id="executeTransferBtn" class="primary-btn" style="display: none;">
+              <span class="btn-icon">🚀</span>
+              确认转账
+            </button>
+          </div>
+        </section>
+
+        <!-- 转账安全提醒 -->
+        <div class="warning-banner">
+          <div class="icon">⚠️</div>
+          <div class="content">
+            <div class="title">安全提醒</div>
+            <div class="text">转账前请仔细核对接收方地址，Solana转账一旦确认无法撤销。建议先进行小额测试转账。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 批量转账 -->
+      <div id="batchTransfer" class="transfer-content">
+        <section class="card">
+          <h3>📤 批量转账</h3>
+          <form id="batchTransferForm" class="transfer-form">
+            <div class="form-grid">
+              <div class="form-group full-width">
+                <label>接收方地址</label>
+                <input type="text" name="to_address" id="batchToAddressInput" placeholder="输入接收方Solana地址..." required />
+                <div id="batchAddressValidation" class="validation-info" style="display: none;"></div>
+                <small>所有选中的钱包都将向此地址转账</small>
+              </div>
+              <div class="form-group">
+                <label>每个钱包转账金额 (SOL)</label>
+                <input type="number" name="amount_per_wallet" step="0.000001" min="0.000001" placeholder="0.000000" required />
+                <small>每个钱包转账的固定金额</small>
+              </div>
+              <div class="form-group full-width">
+                <label>备注 (可选)</label>
+                <input type="text" name="memo" placeholder="批量转账备注..." maxlength="100" />
+                <small>此备注将应用于所有转账交易</small>
+              </div>
+            </div>
+          </form>
+
+          <!-- 钱包选择 -->
+          <div class="wallet-selection">
+            <h4>💼 选择转账钱包</h4>
+            <div id="batchWalletList" class="batch-wallet-list"></div>
+          </div>
+
+          <!-- 批量转账预览 -->
+          <div id="batchTransferPreview" class="transfer-preview" style="display: none;">
+            <h4>🔍 批量转账预览</h4>
+            <div class="batch-preview-summary">
+              <div class="summary-item">
+                <span class="label">接收方地址：</span>
+                <span class="value" id="batchPreviewTo"></span>
+              </div>
+              <div class="summary-item">
+                <span class="label">参与钱包：</span>
+                <span class="value" id="batchPreviewWalletCount"></span>
+              </div>
+              <div class="summary-item">
+                <span class="label">单笔金额：</span>
+                <span class="value" id="batchPreviewAmountPer"></span>
+              </div>
+              <div class="summary-item">
+                <span class="label">总转账金额：</span>
+                <span class="value highlight" id="batchPreviewTotalAmount"></span>
+              </div>
+              <div class="summary-item">
+                <span class="label">总手续费：</span>
+                <span class="value" id="batchPreviewTotalFee"></span>
+              </div>
+              <div class="summary-item">
+                <span class="label">总计花费：</span>
+                <span class="value total" id="batchPreviewGrandTotal"></span>
+              </div>
+            </div>
+            <div id="batchPreviewDetails" class="batch-preview-details"></div>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" id="previewBatchTransferBtn" class="secondary-btn">
+              <span class="btn-icon">🔍</span>
+              预览批量转账
+            </button>
+            <button type="button" id="executeBatchTransferBtn" class="primary-btn" style="display: none;">
+              <span class="btn-icon">🚀</span>
+              确认批量转账
+            </button>
+          </div>
+        </section>
+
+        <!-- 转账安全提醒 -->
+        <div class="warning-banner">
+          <div class="icon">⚠️</div>
+          <div class="content">
+            <div class="title">安全提醒</div>
+            <div class="text">批量转账将依次执行多笔交易，请确保网络连接稳定。建议分批进行大量转账操作。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 转账记录 -->
+      <section class="card">
+        <h3>📜 转账记录</h3>
+        <div id="transferRecords" class="transfer-records">
+          <p class="muted">暂无转账记录</p>
+        </div>
+      </section>
+    </div>
+
     <!-- 批量购买页面 -->
     <div id="buyPage" class="page">
       <div class="page-header">
@@ -198,5 +676,6 @@
 
   <!-- 业务脚本 -->
   <script type="module" src="/static/app.js"></script>
+  <script type="module" src="/static/transfer.js"></script>
 </body>
 </html>

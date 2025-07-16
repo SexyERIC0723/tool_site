@@ -226,7 +226,7 @@ def delete_wallets(wallet_ids: List[int], owner: str) -> int:
         
         session.commit()
         return count
-
+    
 def update_wallet_name(wallet_id: int, owner: str, name: str) -> Wallet:
     """更新钱包名称"""
     with get_session() as session:
