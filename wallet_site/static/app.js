@@ -238,37 +238,64 @@ const updateSelectedWallets = () => {
   $('#deleteBtn').disabled = selectedWallets.size === 0;
 };
 
-// 导入钱包
+// 导入钱包弹窗逻辑
+const importModal = $('#importModal');
+const importTextarea = $('#importTextarea');
+const importConfirm = $('#importConfirm');
+const importCancel = $('#importCancel');
+
 $('#importBtn').onclick = () => {
-  $('#importFile').click();
+  importModal.hidden = false;
 };
 
-$('#importFile').onchange = async (e) => {
-  const file = e.target.files[0];
+importCancel.onclick = () => {
+  importModal.hidden = true;
+  importTextarea.value = '';
+};
+
+// 拖拽文件读取
+importTextarea.addEventListener('dragover', (e) => {
+  e.preventDefault();
+});
+
+importTextarea.addEventListener('drop', (e) => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
   if (!file) return;
-  
+  const reader = new FileReader();
+  reader.onload = () => {
+    importTextarea.value = reader.result;
+  };
+  reader.readAsText(file);
+});
+
+importConfirm.onclick = async () => {
+  const text = importTextarea.value.trim();
+  if (!text) { alertMsg('请输入或拖入私钥'); return; }
+
+  const blob = new Blob([text], { type: 'application/json' });
   const formData = new FormData();
-  formData.append('file', file);
-  
+  formData.append('file', blob, 'import.json');
+
   try {
     const r = await authFetch('/api/wallets/import', {
       method: 'POST',
       body: formData
     });
-    
+
     if (!r.ok) {
       const err = await r.json();
       throw new Error(err.detail || '导入失败');
     }
-    
+
     const result = await r.json();
     alert(`导入成功！\n成功: ${result.imported} 个\n失败: ${result.failed} 个`);
     loadWallets();
+    importModal.hidden = true;
+    importTextarea.value = '';
   } catch (e) {
     alertMsg(`导入失败: ${e.message}`);
   }
-  
-  e.target.value = ''; // 清空选择
 };
 
 // 导出钱包

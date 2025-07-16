@@ -61,7 +61,6 @@
         <button id="exportBtn" class="action-btn" disabled>📤 导出选中</button>
         <button id="balanceBtn" class="action-btn" disabled>💰 查询余额</button>
         <button id="deleteBtn" class="action-btn delete-btn" disabled>🗑️ 删除选中</button>
-        <input type="file" id="importFile" accept=".json" style="display: none;">
       </div>
       
       <!-- 钱包列表 -->
@@ -79,6 +78,18 @@
       <p class="muted">后续将在此处接入 Mint 或二级市场批量购置功能…</p>
     </section>
   </main>
+
+  <!-- 导入钱包弹窗 -->
+  <div id="importModal" class="modal" hidden>
+    <div class="modal-content">
+      <h3>导入私钥（每行一个 JSON，或拖拽文件）</h3>
+      <textarea id="importTextarea" placeholder="粘贴内容或拖入文件"></textarea>
+      <div class="modal-buttons">
+        <button id="importConfirm">导入</button>
+        <button id="importCancel" class="delete-btn">取消</button>
+      </div>
+    </div>
+  </div>
 
   <!-- 业务脚本 -->
   <script type="module" src="/static/app.js"></script>
