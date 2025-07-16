@@ -133,30 +133,36 @@ navLinks.forEach(link => {
 /* ---------- 转账标签切换 ---------- */
 const showTransferTab = (tabName) => {
   // 更新标签状态
-  tabBtns.forEach(btn => {
-    btn.classList.remove('active');
-    if (btn.dataset.tab === tabName) {
-      btn.classList.add('active');
-    }
-  });
+  if (tabBtns && tabBtns.length > 0) {
+    tabBtns.forEach(btn => {
+      btn.classList.remove('active');
+      if (btn.dataset.tab === tabName) {
+        btn.classList.add('active');
+      }
+    });
+  }
   
   // 更新内容显示
-  transferContents.forEach(content => {
-    content.classList.remove('active');
-    if (content.id === `${tabName}Transfer`) {
-      content.classList.add('active');
-    }
-  });
+  if (transferContents && transferContents.length > 0) {
+    transferContents.forEach(content => {
+      content.classList.remove('active');
+      if (content.id === `${tabName}Transfer`) {
+        content.classList.add('active');
+      }
+    });
+  }
   
   currentTransferTab = tabName;
 };
 
 // 标签点击事件
-tabBtns.forEach(btn => {
-  btn.addEventListener('click', () => {
-    showTransferTab(btn.dataset.tab);
+if (tabBtns && tabBtns.length > 0) {
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      showTransferTab(btn.dataset.tab);
+    });
   });
-});
+}
 
 /* ---------- 通用工具 ---------- */
 const renderLogin = () => {
@@ -201,34 +207,49 @@ const authFetch = async (url, opt = {}) => {
 
 /* ---------- 登录/登出 ---------- */
 loginBtn.onclick = async () => {
+  console.log('🔗 连接钱包按钮被点击');
+  
   if (JWT) { 
+    console.log('🚪 用户已登录，执行登出');
     logout(); 
     return; 
   }
   
   if (!window.solana?.isPhantom) { 
+    console.error('❌ Phantom钱包未安装');
     alert('请安装 Phantom 钱包扩展'); 
     return; 
   }
 
   try {
+    console.log('⏳ 等待bs58库加载...');
     await bs58Ready;
+    console.log('✅ bs58库已加载');
     
     // 显示连接中状态
     loginBtn.textContent = '连接中...';
     loginBtn.disabled = true;
     
+    console.log('🔌 尝试连接Phantom钱包...');
     const { publicKey } = await window.solana.connect();
     WALLET = publicKey.toString();
+    console.log('✅ 钱包连接成功:', WALLET);
 
+    console.log('🔢 获取nonce...');
     const { nonce } = await (await fetch(`/api/nonce?wallet=${WALLET}`)).json();
+    console.log('✅ nonce获取成功:', nonce);
+    
     const msg = `Sign in to WalletGen\nNonce: ${nonce}`;
     const bytes = new TextEncoder().encode(msg);
+    
+    console.log('✍️ 请求用户签名...');
     const sig = await window.solana.signMessage(bytes);
     const sigB58 = bs58.encode(sig.signature ?? sig);
+    console.log('✅ 用户签名成功');
 
-    if (bs58.decode(sigB58).length !== 64)
+    if (bs58.decode(sigB58).length !== 64) {
       throw new Error('签名长度异常');
+    }
 
     const body = new URLSearchParams({ 
       wallet: WALLET, 
@@ -236,6 +257,7 @@ loginBtn.onclick = async () => {
       signature: sigB58 
     });
     
+    console.log('🌐 发送登录请求...');
     const r = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -251,6 +273,7 @@ loginBtn.onclick = async () => {
     localStorage.setItem('walletJWT', JWT);
     localStorage.setItem('walletAddr', WALLET);
     
+    console.log('🎉 登录成功!');
     renderLogin();
     hideAlert();
     
@@ -264,7 +287,7 @@ loginBtn.onclick = async () => {
     }
     
   } catch (e) { 
-    console.error(e); 
+    console.error('❌ 登录失败:', e); 
     alertMsg(e.message); 
   } finally {
     loginBtn.disabled = false;
@@ -574,7 +597,269 @@ const updateSelectedWallets = () => {
   $('#deleteBtn').disabled = !selectedWallets.size;
 };
 
-/* ---------- 自定义钱包选择器 ---------- */
+/* ---------- 转账模式管理 ---------- */
+const setupTransferModes = () => {
+  // 接收方模式切换
+  modeBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.mode;
+      switchRecipientMode(mode);
+    });
+  });
+  
+  // 添加接收方按钮
+  addRecipientBtn?.addEventListener('click', addRecipient);
+  
+  // 初始化一个接收方项
+  updateRecipientRemoveButtons();
+};
+
+const switchRecipientMode = (mode) => {
+  currentRecipientMode = mode;
+  
+  // 更新按钮状态
+  modeBtns.forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+  
+  // 更新配置区域显示
+  recipientConfigs.forEach(config => {
+    const configMode = config.className.includes('single-mode') ? 'single' :
+                      config.className.includes('multiple-mode') ? 'multiple' : 'internal';
+    config.classList.toggle('active', configMode === mode);
+  });
+  
+  // 更新表单容器类名
+  const batchTransfer = $('#batchTransfer');
+  if (batchTransfer) {
+    batchTransfer.className = `transfer-content ${mode}-mode`;
+    if (currentTransferTab === 'batch') {
+      batchTransfer.classList.add('active');
+    }
+  }
+  
+  // 根据模式初始化内容
+  if (mode === 'internal') {
+    loadInternalWalletGrid();
+  } else if (mode === 'multiple') {
+    // 确保至少有一个接收方
+    if (recipientList && recipientList.children.length === 0) {
+      addRecipient();
+    }
+  }
+};
+
+const addRecipient = () => {
+  if (!recipientList) return;
+  
+  const index = recipientList.children.length + 1;
+  const recipientItem = document.createElement('div');
+  recipientItem.className = 'recipient-item';
+  recipientItem.innerHTML = `
+    <input type="text" placeholder="接收方地址 #${index}" class="recipient-address" required />
+    <input type="number" placeholder="金额 (SOL)" class="recipient-amount" step="0.000001" min="0.000001" required />
+    <button type="button" class="remove-recipient">✕</button>
+  `;
+  
+  // 绑定删除按钮事件
+  recipientItem.querySelector('.remove-recipient').addEventListener('click', () => {
+    recipientItem.remove();
+    updateRecipientRemoveButtons();
+    updateRecipientNumbers();
+  });
+  
+  recipientList.appendChild(recipientItem);
+  updateRecipientRemoveButtons();
+};
+
+const updateRecipientRemoveButtons = () => {
+  if (!recipientList) return;
+  
+  const items = recipientList.querySelectorAll('.recipient-item');
+  items.forEach((item, index) => {
+    const removeBtn = item.querySelector('.remove-recipient');
+    // 第一个项目不显示删除按钮，或者只有一个项目时不显示
+    if (removeBtn) {
+      removeBtn.style.display = items.length > 1 ? 'block' : 'none';
+    }
+  });
+};
+
+const updateRecipientNumbers = () => {
+  if (!recipientList) return;
+  
+  const items = recipientList.querySelectorAll('.recipient-item');
+  items.forEach((item, index) => {
+    const addressInput = item.querySelector('.recipient-address');
+    if (addressInput) {
+      addressInput.placeholder = `接收方地址 #${index + 1}`;
+    }
+  });
+};
+
+/* ---------- 内部转账管理 ---------- */
+const setupInternalTransfer = () => {
+  // 单笔转账内部转账按钮
+  internalTransferBtn?.addEventListener('click', () => {
+    currentInternalTransferTarget = 'single';
+    showInternalWalletModal();
+  });
+  
+  // 批量转账内部转账按钮
+  batchInternalTransferBtn?.addEventListener('click', () => {
+    currentInternalTransferTarget = 'batch';
+    showInternalWalletModal();
+  });
+  
+  // 弹窗事件
+  $('#internalWalletModalClose')?.addEventListener('click', hideInternalWalletModal);
+  $('#cancelInternalWallet')?.addEventListener('click', hideInternalWalletModal);
+  $('#confirmInternalWallet')?.addEventListener('click', confirmInternalWalletSelection);
+  
+  // 点击背景关闭弹窗
+  internalWalletModal?.addEventListener('click', (e) => {
+    if (e.target === internalWalletModal) {
+      hideInternalWalletModal();
+    }
+  });
+};
+
+const showInternalWalletModal = () => {
+  if (!userWallets.length) {
+    alertMsg('暂无钱包可供选择，请先生成或导入钱包');
+    return;
+  }
+  
+  renderInternalWalletList();
+  if (internalWalletModal) {
+    internalWalletModal.hidden = false;
+  }
+};
+
+const hideInternalWalletModal = () => {
+  if (internalWalletModal) {
+    internalWalletModal.hidden = true;
+  }
+  // 清空选择
+  if (internalWalletList) {
+    internalWalletList.querySelectorAll('.internal-wallet-item').forEach(item => {
+      item.classList.remove('selected');
+      const radio = item.querySelector('input[type="radio"]');
+      if (radio) radio.checked = false;
+    });
+  }
+  const confirmBtn = $('#confirmInternalWallet');
+  if (confirmBtn) confirmBtn.disabled = true;
+};
+
+const renderInternalWalletList = () => {
+  if (!internalWalletList) return;
+  
+  internalWalletList.innerHTML = userWallets.map(wallet => `
+    <div class="internal-wallet-item" data-address="${wallet.public_key}">
+      <input type="radio" name="internalWallet" value="${wallet.public_key}" />
+      <div class="wallet-avatar">
+        ${wallet.name ? wallet.name.charAt(0).toUpperCase() : '#'}
+      </div>
+      <div class="wallet-details">
+        <div class="wallet-name">${wallet.name || `钱包 #${wallet.id}`}</div>
+        <div class="wallet-address-short">${wallet.public_key.slice(0, 8)}...${wallet.public_key.slice(-4)}</div>
+      </div>
+      <div class="wallet-balance">${wallet.balance ? wallet.balance.toFixed(4) : '0.0000'} SOL</div>
+    </div>
+  `).join('');
+  
+  // 绑定选择事件
+  internalWalletList.querySelectorAll('.internal-wallet-item').forEach(item => {
+    item.addEventListener('click', () => {
+      // 取消其他选择
+      internalWalletList.querySelectorAll('.internal-wallet-item').forEach(i => {
+        i.classList.remove('selected');
+        const radio = i.querySelector('input[type="radio"]');
+        if (radio) radio.checked = false;
+      });
+      
+      // 选中当前项
+      item.classList.add('selected');
+      const radio = item.querySelector('input[type="radio"]');
+      if (radio) radio.checked = true;
+      
+      // 启用确认按钮
+      const confirmBtn = $('#confirmInternalWallet');
+      if (confirmBtn) confirmBtn.disabled = false;
+    });
+  });
+};
+
+const confirmInternalWalletSelection = () => {
+  if (!internalWalletList) return;
+  
+  const selectedRadio = internalWalletList.querySelector('input[type="radio"]:checked');
+  if (!selectedRadio) return;
+  
+  const selectedAddress = selectedRadio.value;
+  const selectedWallet = userWallets.find(w => w.public_key === selectedAddress);
+  
+  if (currentInternalTransferTarget === 'single') {
+    // 设置单笔转账的接收方
+    if (toAddressInput) {
+      toAddressInput.value = selectedAddress;
+      // 触发地址验证
+      validateAddress(toAddressInput, $('#addressValidation'));
+    }
+  } else if (currentInternalTransferTarget === 'batch') {
+    // 设置批量转账的接收方
+    if (batchToAddressInput) {
+      batchToAddressInput.value = selectedAddress;
+      // 触发地址验证
+      validateAddress(batchToAddressInput, $('#batchAddressValidation'));
+    }
+  }
+  
+  hideInternalWalletModal();
+  alertMsg(`已选择内部钱包: ${selectedWallet.name || '未命名'} (${selectedAddress.slice(0, 8)}...${selectedAddress.slice(-4)})`);
+};
+
+const loadInternalWalletGrid = () => {
+  if (!internalWalletGrid) return;
+  
+  if (!userWallets.length) {
+    internalWalletGrid.innerHTML = '<p class="muted">暂无钱包可供选择</p>';
+    return;
+  }
+  
+  internalWalletGrid.innerHTML = userWallets.map(wallet => `
+    <div class="internal-wallet-card" data-address="${wallet.public_key}">
+      <div class="checkbox">✓</div>
+      <div class="internal-wallet-info">
+        <div class="wallet-avatar">
+          ${wallet.name ? wallet.name.charAt(0).toUpperCase() : '#'}
+        </div>
+        <div class="wallet-details">
+          <div class="wallet-name">${wallet.name || `钱包 #${wallet.id}`}</div>
+          <div class="wallet-address-short">${wallet.public_key.slice(0, 8)}...${wallet.public_key.slice(-4)}</div>
+        </div>
+      </div>
+      <div class="internal-wallet-meta">
+        <span>余额: ${wallet.balance ? wallet.balance.toFixed(4) : '0.0000'} SOL</span>
+      </div>
+    </div>
+  `).join('');
+  
+  // 绑定选择事件
+  internalWalletGrid.querySelectorAll('.internal-wallet-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const address = card.dataset.address;
+      if (selectedInternalWallets.has(address)) {
+        selectedInternalWallets.delete(address);
+        card.classList.remove('selected');
+      } else {
+        selectedInternalWallets.add(address);
+        card.classList.add('selected');
+      }
+    });
+  });
+};
 class CustomWalletSelector {
   constructor(selectorEl, displayEl, dropdownEl, hiddenInputEl) {
     this.selector = selectorEl;
@@ -735,15 +1020,10 @@ const loadUserWalletsForTransfer = async () => {
       const wallets = await r.json();
       userWallets = wallets;
       
-      fromWalletSelect.innerHTML = `
-        <option value="">请选择钱包...</option>
-        ${wallets.map(w => `
-          <option value="${w.public_key}" data-balance="${w.balance || 0}">
-            ${w.name || `钱包 #${w.id}`} - ${w.public_key.slice(0, 8)}...${w.public_key.slice(-4)} 
-            (${w.balance ? w.balance.toFixed(4) : '0.0000'} SOL)
-          </option>
-        `).join('')}
-      `;
+      // 更新自定义钱包选择器
+      if (fromWalletSelectorInstance) {
+        fromWalletSelectorInstance.setWallets(wallets);
+      }
     }
   } catch (e) {
     console.error('加载钱包失败:', e);
@@ -1494,20 +1774,34 @@ window.downloadJob = async (jobId) => {
 
 /* ---------- 初始化 ---------- */
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('🚀 开始初始化 Solana 工具站...');
+  
+  // 检查关键元素是否存在
+  console.log('🔍 检查关键元素:');
+  console.log('  - loginBtn:', !!loginBtn);
+  console.log('  - pages:', Object.keys(pages).filter(key => pages[key]).length + '/' + Object.keys(pages).length);
+  console.log('  - navLinks:', navLinks.length);
+  
   // 渲染登录状态
   renderLogin();
+  console.log('✅ 登录状态已渲染');
   
   // 显示默认页面
   showPage('generate');
+  console.log('✅ 默认页面已显示');
   
   // 如果已登录，加载对应数据
   if (JWT) {
+    console.log('🔐 检测到已登录状态，加载用户数据...');
     loadHist();
   }
   
   // 初始化转账控制器（如果transfer.js已加载）
   if (window.TransferController) {
     window.transferController = new window.TransferController();
+    console.log('💸 转账控制器已初始化');
+  } else {
+    console.log('⏳ 转账控制器等待transfer.js加载...');
   }
   
   // 添加一些用户体验优化
@@ -1518,5 +1812,5 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   
-  console.log('🚀 Solana 工具站初始化完成');
+  console.log('🎉 Solana 工具站初始化完成');
 });
