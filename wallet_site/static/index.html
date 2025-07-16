@@ -443,14 +443,25 @@
             <div class="form-grid">
               <div class="form-group full-width">
                 <label>发送方钱包</label>
-                <select id="fromWalletSelect" name="from_address" required>
-                  <option value="">请选择钱包...</option>
-                </select>
+                <div class="custom-wallet-selector" id="fromWalletSelector">
+                  <div class="selector-display" id="fromWalletDisplay">
+                    <span class="placeholder">请选择钱包...</span>
+                    <span class="dropdown-arrow">▼</span>
+                  </div>
+                  <div class="selector-dropdown" id="fromWalletDropdown"></div>
+                </div>
+                <input type="hidden" name="from_address" id="selectedFromAddress" />
                 <small>选择您要从中转账的钱包</small>
               </div>
               <div class="form-group full-width">
                 <label>接收方地址</label>
-                <input type="text" name="to_address" id="toAddressInput" placeholder="输入接收方Solana地址..." required />
+                <div class="recipient-input-group">
+                  <input type="text" name="to_address" id="toAddressInput" placeholder="输入接收方Solana地址..." required />
+                  <button type="button" class="internal-transfer-btn" id="internalTransferBtn">
+                    <span class="btn-icon">🏠</span>
+                    内部转账
+                  </button>
+                </div>
                 <div id="addressValidation" class="validation-info" style="display: none;"></div>
                 <small>请仔细核对接收方地址，转账后无法撤销</small>
               </div>
@@ -532,12 +543,72 @@
           <form id="batchTransferForm" class="transfer-form">
             <div class="form-grid">
               <div class="form-group full-width">
-                <label>接收方地址</label>
-                <input type="text" name="to_address" id="batchToAddressInput" placeholder="输入接收方Solana地址..." required />
-                <div id="batchAddressValidation" class="validation-info" style="display: none;"></div>
-                <small>所有选中的钱包都将向此地址转账</small>
+                <label>接收方设置</label>
+                <div class="recipient-mode-selector">
+                  <button type="button" class="mode-btn active" data-mode="single">
+                    <span class="btn-icon">🎯</span>
+                    单一地址
+                  </button>
+                  <button type="button" class="mode-btn" data-mode="multiple">
+                    <span class="btn-icon">📤</span>
+                    多个地址
+                  </button>
+                  <button type="button" class="mode-btn" data-mode="internal">
+                    <span class="btn-icon">🏠</span>
+                    内部分发
+                  </button>
+                </div>
               </div>
-              <div class="form-group">
+
+              <!-- 单一地址模式 -->
+              <div class="recipient-config single-mode active">
+                <div class="form-group full-width">
+                  <label>接收方地址</label>
+                  <div class="recipient-input-group">
+                    <input type="text" name="to_address" id="batchToAddressInput" placeholder="输入接收方Solana地址..." required />
+                    <button type="button" class="internal-transfer-btn" id="batchInternalTransferBtn">
+                      <span class="btn-icon">🏠</span>
+                      选择内部钱包
+                    </button>
+                  </div>
+                  <div id="batchAddressValidation" class="validation-info" style="display: none;"></div>
+                  <small>所有选中的钱包都将向此地址转账</small>
+                </div>
+              </div>
+
+              <!-- 多个地址模式 -->
+              <div class="recipient-config multiple-mode">
+                <div class="form-group full-width">
+                  <label>接收方地址列表</label>
+                  <div class="multiple-recipients">
+                    <div class="recipient-list" id="recipientList">
+                      <div class="recipient-item">
+                        <input type="text" placeholder="接收方地址 #1" class="recipient-address" required />
+                        <input type="number" placeholder="金额 (SOL)" class="recipient-amount" step="0.000001" min="0.000001" required />
+                        <button type="button" class="remove-recipient" style="display: none;">✕</button>
+                      </div>
+                    </div>
+                    <button type="button" class="add-recipient-btn" id="addRecipientBtn">
+                      <span class="btn-icon">➕</span>
+                      添加接收方
+                    </button>
+                  </div>
+                  <small>每行一个接收方，可以设置不同的转账金额</small>
+                </div>
+              </div>
+
+              <!-- 内部分发模式 -->
+              <div class="recipient-config internal-mode">
+                <div class="form-group full-width">
+                  <label>选择接收钱包</label>
+                  <div class="internal-wallet-grid" id="internalWalletGrid">
+                    <!-- 将由JavaScript动态填充 -->
+                  </div>
+                  <small>选择您的钱包作为接收方，支持内部资金分配</small>
+                </div>
+              </div>
+
+              <div class="form-group single-mode-only">
                 <label>每个钱包转账金额 (SOL)</label>
                 <input type="number" name="amount_per_wallet" step="0.000001" min="0.000001" placeholder="0.000000" required />
                 <small>每个钱包转账的固定金额</small>
@@ -644,7 +715,28 @@
     </div>
   </main>
 
-  <!-- 导入钱包弹窗 -->
+  <!-- 内部钱包选择弹窗 -->
+  <div id="internalWalletModal" class="modal" hidden>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>🏠 选择内部钱包</h3>
+        <button class="modal-close" id="internalWalletModalClose">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-description">从您的钱包中选择一个作为接收方</p>
+        <div class="internal-wallet-list" id="internalWalletList">
+          <!-- 将由JavaScript动态填充 -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="confirmInternalWallet" class="modal-btn primary" disabled>
+          <span class="btn-icon">✅</span>
+          确认选择
+        </button>
+        <button id="cancelInternalWallet" class="modal-btn secondary">取消</button>
+      </div>
+    </div>
+  </div>
   <div id="importModal" class="modal" hidden>
     <div class="modal-content">
       <div class="modal-header">

@@ -40,6 +40,17 @@ class BatchTransferRequest(BaseModel):
     amount_per_wallet: float
     memo: Optional[str] = None
 
+class MultipleRecipientTransferRequest(BaseModel):
+    from_wallet_ids: List[int]
+    recipients: List[Dict[str, Any]]  # [{"address": str, "amount": float}]
+    memo: Optional[str] = None
+
+class InternalTransferRequest(BaseModel):
+    from_wallet_ids: List[int]
+    to_wallet_ids: List[int]
+    amount_per_wallet: float
+    memo: Optional[str] = None
+
 class AddressValidation(BaseModel):
     address: str
 
@@ -365,6 +376,148 @@ async def api_prepare_batch_transfer(
         "memo": data.memo
     }
 
+@app.post("/api/transfer/batch-prepare-multiple")
+async def api_prepare_multiple_transfer(
+    data: MultipleRecipientTransferRequest,
+    user: str = Depends(current_user)
+):
+    """准备多接收地址批量转账"""
+    
+    # 验证所有接收方地址
+    for recipient in data.recipients:
+        if not await TransferService.validate_address(recipient["address"]):
+            raise HTTPException(400, f"无效的接收方地址: {recipient['address']}")
+    
+    # 获取用户钱包
+    wallets = TransferService.get_user_wallets_by_ids(user, data.from_wallet_ids)
+    if len(wallets) != len(data.from_wallet_ids):
+        raise HTTPException(403, "部分钱包不属于当前用户")
+    
+    # 估算手续费
+    fee = await TransferService.estimate_fee()
+    
+    # 计算总转账金额和检查余额
+    total_amount = sum(r["amount"] for r in data.recipients)
+    total_transfers = len(wallets) * len(data.recipients)
+    total_fees = total_transfers * fee
+    
+    transfers = []
+    insufficient_wallets = 0
+    
+    for wallet in wallets:
+        balance = await TransferService.get_balance(wallet.public_key)
+        if balance is None:
+            raise HTTPException(500, f"无法获取钱包 {wallet.public_key} 的余额")
+        
+        # 每个钱包需要向所有接收方转账
+        required_per_wallet = total_amount + (len(data.recipients) * fee)
+        sufficient = balance >= required_per_wallet
+        
+        if not sufficient:
+            insufficient_wallets += 1
+        
+        transfers.append({
+            "wallet_id": wallet.id,
+            "wallet_name": wallet.name,
+            "from_address": wallet.public_key,
+            "current_balance": balance,
+            "total_send_amount": total_amount,
+            "total_fee": len(data.recipients) * fee,
+            "total_required": required_per_wallet,
+            "sufficient": sufficient
+        })
+    
+    successful_wallets = len(wallets) - insufficient_wallets
+    actual_total_amount = successful_wallets * total_amount
+    actual_total_fees = successful_wallets * len(data.recipients) * fee
+    
+    return {
+        "recipients": data.recipients,
+        "total_wallets": len(wallets),
+        "sufficient_wallets": successful_wallets,
+        "insufficient_wallets": insufficient_wallets,
+        "total_transfer_amount": actual_total_amount,
+        "total_fees": actual_total_fees,
+        "total_required": actual_total_amount + actual_total_fees,
+        "transfers": transfers,
+        "memo": data.memo
+    }
+
+@app.post("/api/transfer/batch-prepare-internal")
+async def api_prepare_internal_transfer(
+    data: InternalTransferRequest,
+    user: str = Depends(current_user)
+):
+    """准备内部钱包间批量转账"""
+    
+    # 获取发送方钱包
+    from_wallets = TransferService.get_user_wallets_by_ids(user, data.from_wallet_ids)
+    if len(from_wallets) != len(data.from_wallet_ids):
+        raise HTTPException(403, "部分发送方钱包不属于当前用户")
+    
+    # 获取接收方钱包
+    to_wallets = TransferService.get_user_wallets_by_ids(user, data.to_wallet_ids)
+    if len(to_wallets) != len(data.to_wallet_ids):
+        raise HTTPException(403, "部分接收方钱包不属于当前用户")
+    
+    # 检查是否有重复钱包（发送方和接收方不能重叠）
+    from_addresses = {w.public_key for w in from_wallets}
+    to_addresses = {w.public_key for w in to_wallets}
+    
+    if from_addresses & to_addresses:
+        raise HTTPException(400, "发送方和接收方钱包不能重叠")
+    
+    # 估算手续费
+    fee = await TransferService.estimate_fee()
+    
+    # 计算每个发送方钱包需要的总金额
+    amount_per_receiver = data.amount_per_wallet
+    total_receivers = len(to_wallets)
+    total_amount_per_sender = amount_per_receiver * total_receivers
+    total_fee_per_sender = fee * total_receivers
+    required_per_sender = total_amount_per_sender + total_fee_per_sender
+    
+    transfers = []
+    insufficient_wallets = 0
+    
+    for wallet in from_wallets:
+        balance = await TransferService.get_balance(wallet.public_key)
+        if balance is None:
+            raise HTTPException(500, f"无法获取钱包 {wallet.public_key} 的余额")
+        
+        sufficient = balance >= required_per_sender
+        
+        if not sufficient:
+            insufficient_wallets += 1
+        
+        transfers.append({
+            "wallet_id": wallet.id,
+            "wallet_name": wallet.name,
+            "from_address": wallet.public_key,
+            "current_balance": balance,
+            "total_send_amount": total_amount_per_sender,
+            "total_fee": total_fee_per_sender,
+            "total_required": required_per_sender,
+            "sufficient": sufficient
+        })
+    
+    successful_wallets = len(from_wallets) - insufficient_wallets
+    actual_total_amount = successful_wallets * total_amount_per_sender
+    actual_total_fees = successful_wallets * total_fee_per_sender
+    
+    return {
+        "internal_wallets": [{"id": w.id, "name": w.name, "address": w.public_key} for w in to_wallets],
+        "amount_per_wallet": data.amount_per_wallet,
+        "total_wallets": len(from_wallets),
+        "sufficient_wallets": successful_wallets,
+        "insufficient_wallets": insufficient_wallets,
+        "total_transfer_amount": actual_total_amount,
+        "total_fees": actual_total_fees,
+        "total_required": actual_total_amount + actual_total_fees,
+        "transfers": transfers,
+        "memo": data.memo
+    }
+
 # ---------- 转账执行和记录管理 API ----------
 @app.post("/api/transfer/execute")
 async def api_execute_transfer(
@@ -403,6 +556,236 @@ async def api_execute_transfer(
         "recent_blockhash": recent_blockhash,
         "memo": data.memo,
         "status": "ready_for_signature"
+    }
+
+@app.post("/api/transfer/batch-execute-multiple")
+async def api_execute_multiple_transfer(
+    data: MultipleRecipientTransferRequest,
+    user: str = Depends(current_user)
+):
+    """执行多接收地址批量转账"""
+    
+    # 验证和准备批量转账
+    prepare_result = await api_prepare_multiple_transfer(data, user)
+    
+    # 创建批量转账任务
+    batch_task = TransferService.create_batch_transfer_task(
+        owner=user,
+        to_address=f"多个地址({len(data.recipients)}个)",
+        amount_per_wallet=sum(r["amount"] for r in data.recipients),
+        wallet_count=prepare_result["sufficient_wallets"],
+        total_amount=prepare_result["total_transfer_amount"],
+        total_fees=prepare_result["total_fees"],
+        memo=data.memo
+    )
+    
+    # 为每个有效钱包和每个接收方创建转账记录
+    transfer_records = []
+    transfer_instructions = []
+    
+    for transfer_info in prepare_result["transfers"]:
+        if transfer_info["sufficient"]:
+            for recipient in data.recipients:
+                # 创建转账记录
+                record = TransferService.create_transfer_record(
+                    owner=user,
+                    from_address=transfer_info["from_address"],
+                    to_address=recipient["address"],
+                    amount=recipient["amount"],
+                    fee=await TransferService.estimate_fee(),
+                    memo=data.memo,
+                    transfer_type="batch",
+                    batch_id=batch_task.id
+                )
+                transfer_records.append(record)
+                
+                # 构建转账指令
+                instruction = TransferService.build_transfer_instruction(
+                    from_pubkey=transfer_info["from_address"],
+                    to_pubkey=recipient["address"],
+                    amount_lamports=int(recipient["amount"] * 1e9)
+                )
+                transfer_instructions.append({
+                    "transfer_id": record.id,
+                    "wallet_id": transfer_info["wallet_id"],
+                    "recipient_address": recipient["address"],
+                    "instruction": instruction
+                })
+    
+    # 获取最新区块哈希
+    recent_blockhash = await TransferService.get_recent_blockhash()
+    
+    return {
+        "batch_id": batch_task.id,
+        "transfer_instructions": transfer_instructions,
+        "recent_blockhash": recent_blockhash,
+        "total_transfers": len(transfer_instructions),
+        "status": "ready_for_signature"
+    }
+
+@app.post("/api/transfer/batch-execute-internal")
+async def api_execute_internal_transfer(
+    data: InternalTransferRequest,
+    user: str = Depends(current_user)
+):
+    """执行内部钱包间批量转账"""
+    
+    # 验证和准备内部转账
+    prepare_result = await api_prepare_internal_transfer(data, user)
+    
+    # 创建批量转账任务
+    batch_task = TransferService.create_batch_transfer_task(
+        owner=user,
+        to_address=f"内部钱包({len(data.to_wallet_ids)}个)",
+        amount_per_wallet=data.amount_per_wallet,
+        wallet_count=prepare_result["sufficient_wallets"],
+        total_amount=prepare_result["total_transfer_amount"],
+        total_fees=prepare_result["total_fees"],
+        memo=data.memo
+    )
+    
+    # 获取接收方钱包信息
+    to_wallets = TransferService.get_user_wallets_by_ids(user, data.to_wallet_ids)
+    to_wallet_map = {w.id: w for w in to_wallets}
+    
+    # 为每个有效发送钱包和每个接收钱包创建转账记录
+    transfer_records = []
+    transfer_instructions = []
+    
+    for transfer_info in prepare_result["transfers"]:
+        if transfer_info["sufficient"]:
+            for to_wallet_id in data.to_wallet_ids:
+                to_wallet = to_wallet_map[to_wallet_id]
+                
+                # 创建转账记录
+                record = TransferService.create_transfer_record(
+                    owner=user,
+                    from_address=transfer_info["from_address"],
+                    to_address=to_wallet.public_key,
+                    amount=data.amount_per_wallet,
+                    fee=await TransferService.estimate_fee(),
+                    memo=data.memo,
+                    transfer_type="batch",
+                    batch_id=batch_task.id
+                )
+                transfer_records.append(record)
+                
+                # 构建转账指令
+                instruction = TransferService.build_transfer_instruction(
+                    from_pubkey=transfer_info["from_address"],
+                    to_pubkey=to_wallet.public_key,
+                    amount_lamports=int(data.amount_per_wallet * 1e9)
+                )
+                transfer_instructions.append({
+                    "transfer_id": record.id,
+                    "from_wallet_id": transfer_info["wallet_id"],
+                    "to_wallet_id": to_wallet_id,
+                    "instruction": instruction
+                })
+    
+    # 获取最新区块哈希
+    recent_blockhash = await TransferService.get_recent_blockhash()
+    
+    return {
+        "batch_id": batch_task.id,
+        "transfer_instructions": transfer_instructions,
+        "recent_blockhash": recent_blockhash,
+        "total_transfers": len(transfer_instructions),
+        "status": "ready_for_signature"
+    }
+
+@app.post("/api/transfer/batch-confirm-multiple")
+async def api_confirm_multiple_transfer(
+    data: BatchTransferExecution,
+    user: str = Depends(current_user)
+):
+    """确认多接收地址批量转账已签名并广播"""
+    
+    successful_count = 0
+    failed_count = 0
+    
+    # 更新每个转账记录
+    for result in data.results:
+        transfer_id = result.get("transfer_id")
+        signature = result.get("signature")
+        error = result.get("error")
+        
+        if signature and not error:
+            TransferService.update_transfer_record(
+                record_id=transfer_id,
+                signature=signature,
+                status="pending"
+            )
+            successful_count += 1
+        else:
+            TransferService.update_transfer_record(
+                record_id=transfer_id,
+                status="failed",
+                error_message=error or "签名失败"
+            )
+            failed_count += 1
+    
+    # 更新批量转账任务状态
+    status = "completed" if failed_count == 0 else "partially_completed"
+    TransferService.update_batch_transfer_task(
+        task_id=data.batch_id,
+        successful_transfers=successful_count,
+        failed_transfers=failed_count,
+        status=status
+    )
+    
+    return {
+        "batch_id": data.batch_id,
+        "successful_transfers": successful_count,
+        "failed_transfers": failed_count,
+        "status": status
+    }
+
+@app.post("/api/transfer/batch-confirm-internal")
+async def api_confirm_internal_transfer(
+    data: BatchTransferExecution,
+    user: str = Depends(current_user)
+):
+    """确认内部批量转账已签名并广播"""
+    
+    successful_count = 0
+    failed_count = 0
+    
+    # 更新每个转账记录
+    for result in data.results:
+        transfer_id = result.get("transfer_id")
+        signature = result.get("signature")
+        error = result.get("error")
+        
+        if signature and not error:
+            TransferService.update_transfer_record(
+                record_id=transfer_id,
+                signature=signature,
+                status="pending"
+            )
+            successful_count += 1
+        else:
+            TransferService.update_transfer_record(
+                record_id=transfer_id,
+                status="failed",
+                error_message=error or "签名失败"
+            )
+            failed_count += 1
+    
+    # 更新批量转账任务状态
+    status = "completed" if failed_count == 0 else "partially_completed"
+    TransferService.update_batch_transfer_task(
+        task_id=data.batch_id,
+        successful_transfers=successful_count,
+        failed_transfers=failed_count,
+        status=status
+    )
+    
+    return {
+        "batch_id": data.batch_id,
+        "successful_transfers": successful_count,
+        "failed_transfers": failed_count,
+        "status": status
     }
 
 @app.post("/api/transfer/confirm")

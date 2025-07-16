@@ -197,13 +197,17 @@ class TransferController {
     btn.disabled = true;
 
     try {
-      // 获取表单数据
-      const formData = new FormData(singleTransferForm);
+      // 获取表单数据（使用隐藏input而不是select）
+      const fromAddress = selectedFromAddress.value;
+      const toAddress = toAddressInput.value;
+      const amount = parseFloat(singleTransferForm.querySelector('input[name="amount"]').value);
+      const memo = singleTransferForm.querySelector('input[name="memo"]').value;
+
       const transferRequest = {
-        from_address: formData.get('from_address'),
-        to_address: formData.get('to_address'),
-        amount: parseFloat(formData.get('amount')),
-        memo: formData.get('memo')
+        from_address: fromAddress,
+        to_address: toAddress,
+        amount: amount,
+        memo: memo
       };
 
       // 1. 调用后端准备转账
@@ -246,6 +250,7 @@ class TransferController {
 
       // 重置表单
       singleTransferForm.reset();
+      fromWalletSelectorInstance.reset();
       transferPreview.style.display = 'none';
       btn.style.display = 'none';
 
@@ -269,17 +274,55 @@ class TransferController {
     btn.disabled = true;
 
     try {
-      // 获取表单数据
-      const formData = new FormData(batchTransferForm);
-      const batchRequest = {
-        from_wallet_ids: Array.from(selectedBatchWallets),
-        to_address: formData.get('to_address'),
-        amount_per_wallet: parseFloat(formData.get('amount_per_wallet')),
-        memo: formData.get('memo')
-      };
+      let batchRequest;
+      let endpoint;
+
+      // 根据不同模式构建请求数据
+      if (currentRecipientMode === 'single') {
+        const toAddress = batchToAddressInput.value;
+        const amountPerWallet = parseFloat(batchTransferForm.querySelector('input[name="amount_per_wallet"]').value);
+        const memo = batchTransferForm.querySelector('input[name="memo"]').value;
+
+        batchRequest = {
+          from_wallet_ids: Array.from(selectedBatchWallets),
+          to_address: toAddress,
+          amount_per_wallet: amountPerWallet,
+          memo: memo
+        };
+        endpoint = '/api/transfer/batch-execute';
+
+      } else if (currentRecipientMode === 'multiple') {
+        const recipients = [];
+        const recipientItems = recipientList.querySelectorAll('.recipient-item');
+        
+        for (const item of recipientItems) {
+          const address = item.querySelector('.recipient-address').value;
+          const amount = parseFloat(item.querySelector('.recipient-amount').value);
+          recipients.push({ address, amount });
+        }
+
+        batchRequest = {
+          from_wallet_ids: Array.from(selectedBatchWallets),
+          recipients: recipients,
+          memo: batchTransferForm.querySelector('input[name="memo"]').value
+        };
+        endpoint = '/api/transfer/batch-execute-multiple';
+
+      } else if (currentRecipientMode === 'internal') {
+        const amountPerWallet = parseFloat(batchTransferForm.querySelector('input[name="amount_per_wallet"]').value);
+        const memo = batchTransferForm.querySelector('input[name="memo"]').value;
+
+        batchRequest = {
+          from_wallet_ids: Array.from(selectedBatchWallets),
+          to_wallet_ids: Array.from(selectedInternalWallets),
+          amount_per_wallet: amountPerWallet,
+          memo: memo
+        };
+        endpoint = '/api/transfer/batch-execute-internal';
+      }
 
       // 1. 调用后端准备批量转账
-      const prepareResponse = await authFetch('/api/transfer/batch-execute', {
+      const prepareResponse = await authFetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(batchRequest)
@@ -301,7 +344,8 @@ class TransferController {
       const results = await this.executor.executeBatchTransfer(batchData);
       
       // 3. 确认批量转账结果
-      await authFetch('/api/transfer/batch-confirm', {
+      const confirmEndpoint = endpoint.replace('-execute', '-confirm');
+      await authFetch(confirmEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -323,12 +367,22 @@ class TransferController {
         successful > 0 ? 'success' : 'error'
       );
 
-      // 重置表单
+      // 重置表单和选择
       batchTransferForm.reset();
       selectedBatchWallets.clear();
+      selectedInternalWallets.clear();
       updateSelectedBatchWallets();
       batchTransferPreview.style.display = 'none';
       btn.style.display = 'none';
+
+      // 清空接收方列表（多地址模式）
+      if (currentRecipientMode === 'multiple') {
+        recipientList.innerHTML = '';
+        addRecipient(); // 重新添加一个默认项
+      }
+
+      // 重新加载钱包列表和转账记录
+      await loadTransferRecords();
 
     } catch (error) {
       console.error('批量转账失败:', error);
@@ -463,9 +517,22 @@ function displayTransferRecords(records) {
 /* ---------- 初始化转账功能 ---------- */
 let transferController;
 
-// 当转账页面激活时初始化
+// 当文档加载完成时初始化
 document.addEventListener('DOMContentLoaded', () => {
-  transferController = new TransferController();
+  // 等待主应用初始化完成后再初始化转账功能
+  setTimeout(() => {
+    transferController = new TransferController();
+    window.transferController = transferController;
+    console.log('💸 转账功能初始化完成');
+  }, 100);
+});
+
+// 页面可见性变化时重新初始化（防止页面切换导致的问题）
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && !window.transferController) {
+    transferController = new TransferController();
+    window.transferController = transferController;
+  }
 });
 
 // 导出给全局使用
