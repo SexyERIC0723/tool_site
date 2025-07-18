@@ -384,18 +384,27 @@
   }
 
   /* 内部钱包选择列表 - 统一样式 */
-  .internal-wallet-grid,
-  .batch-wallet-list,
-  .internal-wallet-list {
-    max-height: 350px;
-    overflow-y: auto;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    background: white;
-    margin-bottom: 16px;
-    width: 100%;
-    max-width: 800px; /* 增加最大宽度 */
-  }
+.internal-wallet-grid,
+.batch-wallet-list,
+.internal-wallet-list {
+  max-height: 350px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: white;
+  margin-bottom: 16px;
+  width: 100%;
+  max-width: 800px; /* 增加最大宽度 */
+}
+
+/* 在内部分发模式下以网格显示钱包，避免列表过窄 */
+.internal-wallet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 8px;
+  padding: 8px;
+  box-sizing: border-box;
+}
 
   .internal-wallet-grid .internal-wallet-item,
   .batch-wallet-list .batch-wallet-item,
