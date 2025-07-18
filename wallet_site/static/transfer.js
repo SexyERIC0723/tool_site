@@ -181,9 +181,36 @@ class TransferController {
   }
 
   setupEventListeners() {
-    // 实际执行转账按钮
-    $('#executeTransferBtn')?.addEventListener('click', () => this.handleSingleTransfer());
-    $('#executeBatchTransferBtn')?.addEventListener('click', () => this.handleBatchTransfer());
+    // 确保DOM元素存在后再绑定事件
+    const checkAndBind = () => {
+      const executeTransferBtn = document.getElementById('executeTransferBtn');
+      const executeBatchTransferBtn = document.getElementById('executeBatchTransferBtn');
+      
+      if (executeTransferBtn && !executeTransferBtn.hasAttribute('data-transfer-bound')) {
+        executeTransferBtn.addEventListener('click', () => this.handleSingleTransfer());
+        executeTransferBtn.setAttribute('data-transfer-bound', 'true');
+        console.log('✅ 单笔转账按钮事件已绑定');
+      }
+      
+      if (executeBatchTransferBtn && !executeBatchTransferBtn.hasAttribute('data-batch-bound')) {
+        executeBatchTransferBtn.addEventListener('click', () => this.handleBatchTransfer());
+        executeBatchTransferBtn.setAttribute('data-batch-bound', 'true');
+        console.log('✅ 批量转账按钮事件已绑定');
+      }
+    };
+
+    // 立即检查
+    checkAndBind();
+    
+    // 设置定时检查，确保页面动态加载的元素也能绑定事件
+    const checkInterval = setInterval(() => {
+      checkAndBind();
+    }, 1000);
+
+    // 5秒后停止检查
+    setTimeout(() => {
+      clearInterval(checkInterval);
+    }, 5000);
   }
 
   async handleSingleTransfer() {
@@ -191,17 +218,38 @@ class TransferController {
       return;
     }
 
-    const btn = $('#executeTransferBtn');
+    const btn = document.getElementById('executeTransferBtn');
+    if (!btn) return;
+
     const originalText = btn.innerHTML;
     btn.innerHTML = '<span class="btn-icon">⏳</span> 执行中...';
     btn.disabled = true;
 
     try {
-      // 获取表单数据（使用隐藏input而不是select）
+      // 获取表单数据
+      const selectedFromAddress = document.getElementById('selectedFromAddress');
+      const toAddressInput = document.getElementById('toAddressInput');
+      const singleTransferForm = document.getElementById('singleTransferForm');
+      
+      if (!selectedFromAddress || !toAddressInput || !singleTransferForm) {
+        throw new Error('转账表单元素不完整');
+      }
+
       const fromAddress = selectedFromAddress.value;
       const toAddress = toAddressInput.value;
-      const amount = parseFloat(singleTransferForm.querySelector('input[name="amount"]').value);
-      const memo = singleTransferForm.querySelector('input[name="memo"]').value;
+      const amountInput = singleTransferForm.querySelector('input[name="amount"]');
+      const memoInput = singleTransferForm.querySelector('input[name="memo"]');
+      
+      if (!amountInput) {
+        throw new Error('找不到金额输入框');
+      }
+
+      const amount = parseFloat(amountInput.value);
+      const memo = memoInput ? memoInput.value : '';
+
+      if (!fromAddress || !toAddress || !amount) {
+        throw new Error('请填写完整的转账信息');
+      }
 
       const transferRequest = {
         from_address: fromAddress,
@@ -211,7 +259,7 @@ class TransferController {
       };
 
       // 1. 调用后端准备转账
-      const prepareResponse = await authFetch('/api/transfer/execute', {
+      const prepareResponse = await window.authFetch('/api/transfer/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(transferRequest)
@@ -230,7 +278,7 @@ class TransferController {
       const result = await this.executor.executeTransfer(transferData);
       
       // 3. 确认转账
-      await authFetch('/api/transfer/confirm', {
+      await window.authFetch('/api/transfer/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -250,8 +298,16 @@ class TransferController {
 
       // 重置表单
       singleTransferForm.reset();
-      fromWalletSelectorInstance.reset();
-      transferPreview.style.display = 'none';
+      const fromWalletSelectorInstance = window.fromWalletSelectorInstance;
+      if (fromWalletSelectorInstance) {
+        fromWalletSelectorInstance.reset();
+      }
+      
+      const transferPreview = document.getElementById('transferPreview');
+      if (transferPreview) {
+        transferPreview.style.display = 'none';
+      }
+      
       btn.style.display = 'none';
 
     } catch (error) {
@@ -268,7 +324,9 @@ class TransferController {
       return;
     }
 
-    const btn = $('#executeBatchTransferBtn');
+    const btn = document.getElementById('executeBatchTransferBtn');
+    if (!btn) return;
+
     const originalText = btn.innerHTML;
     btn.innerHTML = '<span class="btn-icon">⏳</span> 执行中...';
     btn.disabled = true;
@@ -277,11 +335,34 @@ class TransferController {
       let batchRequest;
       let endpoint;
 
+      // 获取当前接收方模式
+      const currentRecipientMode = window.currentRecipientMode || 'single';
+      const selectedBatchWallets = window.selectedBatchWallets || new Set();
+      const selectedInternalWallets = window.selectedInternalWallets || new Set();
+
       // 根据不同模式构建请求数据
       if (currentRecipientMode === 'single') {
+        const batchToAddressInput = document.getElementById('batchToAddressInput');
+        const batchTransferForm = document.getElementById('batchTransferForm');
+        
+        if (!batchToAddressInput || !batchTransferForm) {
+          throw new Error('批量转账表单元素不完整');
+        }
+
         const toAddress = batchToAddressInput.value;
-        const amountPerWallet = parseFloat(batchTransferForm.querySelector('input[name="amount_per_wallet"]').value);
-        const memo = batchTransferForm.querySelector('input[name="memo"]').value;
+        const amountInput = batchTransferForm.querySelector('input[name="amount_per_wallet"]');
+        const memoInput = batchTransferForm.querySelector('input[name="memo"]');
+        
+        if (!amountInput) {
+          throw new Error('找不到金额输入框');
+        }
+
+        const amountPerWallet = parseFloat(amountInput.value);
+        const memo = memoInput ? memoInput.value : '';
+
+        if (!toAddress || !amountPerWallet || selectedBatchWallets.size === 0) {
+          throw new Error('请填写完整的批量转账信息并选择钱包');
+        }
 
         batchRequest = {
           from_wallet_ids: Array.from(selectedBatchWallets),
@@ -292,37 +373,89 @@ class TransferController {
         endpoint = '/api/transfer/batch-execute';
 
       } else if (currentRecipientMode === 'multiple') {
+        const recipientList = document.getElementById('recipientList');
+        const batchTransferForm = document.getElementById('batchTransferForm');
+        
+        if (!recipientList || !batchTransferForm) {
+          throw new Error('多地址转账表单元素不完整');
+        }
+
         const recipients = [];
         const recipientItems = recipientList.querySelectorAll('.recipient-item');
         
         for (const item of recipientItems) {
-          const address = item.querySelector('.recipient-address').value;
-          const amount = parseFloat(item.querySelector('.recipient-amount').value);
+          const addressInput = item.querySelector('.recipient-address');
+          const amountInput = item.querySelector('.recipient-amount');
+          
+          if (!addressInput || !amountInput) {
+            throw new Error('接收方信息不完整');
+          }
+
+          const address = addressInput.value;
+          const amount = parseFloat(amountInput.value);
+          
+          if (!address || !amount) {
+            throw new Error('请填写完整的接收方信息');
+          }
+          
           recipients.push({ address, amount });
         }
 
+        if (recipients.length === 0 || selectedBatchWallets.size === 0) {
+          throw new Error('请添加接收方并选择发送钱包');
+        }
+
+        const memoInput = batchTransferForm.querySelector('input[name="memo"]');
         batchRequest = {
           from_wallet_ids: Array.from(selectedBatchWallets),
           recipients: recipients,
-          memo: batchTransferForm.querySelector('input[name="memo"]').value
+          memo: memoInput ? memoInput.value : ''
         };
         endpoint = '/api/transfer/batch-execute-multiple';
 
       } else if (currentRecipientMode === 'internal') {
-        const amountPerWallet = parseFloat(batchTransferForm.querySelector('input[name="amount_per_wallet"]').value);
-        const memo = batchTransferForm.querySelector('input[name="memo"]').value;
+        const batchTransferForm = document.getElementById('batchTransferForm');
+        
+        if (!batchTransferForm) {
+          throw new Error('内部转账表单元素不完整');
+        }
 
+        if (selectedBatchWallets.size === 0 || selectedInternalWallets.size === 0) {
+          throw new Error('请选择发送钱包和接收钱包');
+        }
+        
+        const amountInput = batchTransferForm.querySelector('input[name="amount_per_wallet"]');
+        if (!amountInput) {
+          throw new Error('找不到金额输入框');
+        }
+
+        const amountPerWallet = parseFloat(amountInput.value);
+        if (!amountPerWallet) {
+          throw new Error('请设置转账金额');
+        }
+
+        // 获取选中的内部钱包ID（从地址转换为ID）
+        const selectedInternalWalletIds = [];
+        const userWallets = window.userWallets || [];
+        selectedInternalWallets.forEach(address => {
+          const wallet = userWallets.find(w => w.public_key === address);
+          if (wallet) {
+            selectedInternalWalletIds.push(wallet.id);
+          }
+        });
+
+        const memoInput = batchTransferForm.querySelector('input[name="memo"]');
         batchRequest = {
           from_wallet_ids: Array.from(selectedBatchWallets),
-          to_wallet_ids: Array.from(selectedInternalWallets),
+          to_wallet_ids: selectedInternalWalletIds,
           amount_per_wallet: amountPerWallet,
-          memo: memo
+          memo: memoInput ? memoInput.value : ''
         };
         endpoint = '/api/transfer/batch-execute-internal';
       }
 
       // 1. 调用后端准备批量转账
-      const prepareResponse = await authFetch(endpoint, {
+      const prepareResponse = await window.authFetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(batchRequest)
@@ -345,7 +478,7 @@ class TransferController {
       
       // 3. 确认批量转账结果
       const confirmEndpoint = endpoint.replace('-execute', '-confirm');
-      await authFetch(confirmEndpoint, {
+      await window.authFetch(confirmEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -368,21 +501,53 @@ class TransferController {
       );
 
       // 重置表单和选择
-      batchTransferForm.reset();
+      const batchTransferForm = document.getElementById('batchTransferForm');
+      if (batchTransferForm) {
+        batchTransferForm.reset();
+      }
+      
       selectedBatchWallets.clear();
       selectedInternalWallets.clear();
-      updateSelectedBatchWallets();
-      batchTransferPreview.style.display = 'none';
+      
+      // 更新选择状态
+      if (window.updateSelectedBatchWallets) {
+        window.updateSelectedBatchWallets();
+      }
+      
+      // 清空内部钱包选择状态
+      const internalWalletGrid = document.getElementById('internalWalletGrid');
+      if (internalWalletGrid) {
+        internalWalletGrid.querySelectorAll('.internal-wallet-select').forEach(checkbox => {
+          checkbox.checked = false;
+        });
+        internalWalletGrid.querySelectorAll('.internal-wallet-item').forEach(item => {
+          item.classList.remove('selected');
+        });
+      }
+      
+      const batchTransferPreview = document.getElementById('batchTransferPreview');
+      if (batchTransferPreview) {
+        batchTransferPreview.style.display = 'none';
+      }
+      
       btn.style.display = 'none';
 
       // 清空接收方列表（多地址模式）
       if (currentRecipientMode === 'multiple') {
-        recipientList.innerHTML = '';
-        addRecipient(); // 重新添加一个默认项
+        const recipientList = document.getElementById('recipientList');
+        if (recipientList) {
+          recipientList.innerHTML = '';
+          // 重新添加一个默认项
+          if (window.addRecipient) {
+            window.addRecipient();
+          }
+        }
       }
 
-      // 重新加载钱包列表和转账记录
-      await loadTransferRecords();
+      // 重新加载转账记录
+      if (window.loadTransferRecords) {
+        await window.loadTransferRecords();
+      }
 
     } catch (error) {
       console.error('批量转账失败:', error);
@@ -401,7 +566,7 @@ class TransferController {
       try {
         attempts++;
         
-        const response = await authFetch(`/api/transfer/status/${signature}`);
+        const response = await window.authFetch(`/api/transfer/status/${signature}`);
         if (response.ok) {
           const status = await response.json();
           
@@ -444,7 +609,7 @@ class TransferController {
 /* ---------- 转账进度显示 ---------- */
 function showTransferProgress(message, type = 'info') {
   // 创建进度弹窗
-  let progressModal = $('#transferProgressModal');
+  let progressModal = document.getElementById('transferProgressModal');
   if (!progressModal) {
     progressModal = document.createElement('div');
     progressModal.id = 'transferProgressModal';
@@ -479,15 +644,17 @@ function showTransferProgress(message, type = 'info') {
     info: 'ℹ️'
   };
   
-  icon.textContent = icons[type] || icons.info;
-  messageEl.textContent = message;
-  messageEl.className = `progress-message ${type}`;
+  if (icon) icon.textContent = icons[type] || icons.info;
+  if (messageEl) {
+    messageEl.textContent = message;
+    messageEl.className = `progress-message ${type}`;
+  }
   
   progressModal.hidden = false;
 }
 
 function hideTransferProgress() {
-  const progressModal = $('#transferProgressModal');
+  const progressModal = document.getElementById('transferProgressModal');
   if (progressModal) {
     progressModal.hidden = true;
   }
@@ -495,10 +662,11 @@ function hideTransferProgress() {
 
 /* ---------- 转账记录管理 ---------- */
 async function loadTransferRecords() {
+  const JWT = localStorage.getItem('walletJWT');
   if (!JWT) return;
   
   try {
-    const response = await authFetch('/api/transfer/records?limit=20');
+    const response = await window.authFetch('/api/transfer/records?limit=20');
     if (response.ok) {
       const records = await response.json();
       displayTransferRecords(records);
@@ -517,26 +685,56 @@ function displayTransferRecords(records) {
 /* ---------- 初始化转账功能 ---------- */
 let transferController;
 
-// 当文档加载完成时初始化
-document.addEventListener('DOMContentLoaded', () => {
-  // 等待主应用初始化完成后再初始化转账功能
-  setTimeout(() => {
-    transferController = new TransferController();
-    window.transferController = transferController;
-    console.log('💸 转账功能初始化完成');
-  }, 100);
-});
+// 确保在DOM完全加载后初始化
+function initTransferController() {
+  if (transferController) return;
+  
+  transferController = new TransferController();
+  window.transferController = transferController;
+  
+  // 导出必要的函数到全局
+  window.showTransferProgress = showTransferProgress;
+  window.hideTransferProgress = hideTransferProgress;
+  window.loadTransferRecords = loadTransferRecords;
+  
+  console.log('💸 转账控制器已初始化');
+}
+
+// 多种方式确保初始化
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initTransferController);
+} else {
+  initTransferController();
+}
 
 // 页面可见性变化时重新初始化（防止页面切换导致的问题）
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && !window.transferController) {
-    transferController = new TransferController();
-    window.transferController = transferController;
+    initTransferController();
   }
 });
+
+// 监听页面变化，确保转账页面激活时初始化
+const observePageChanges = () => {
+  const transferPage = document.getElementById('transferPage');
+  if (transferPage) {
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+          if (transferPage.classList.contains('active') && !window.transferController) {
+            initTransferController();
+          }
+        }
+      });
+    });
+    
+    observer.observe(transferPage, { attributes: true });
+  }
+};
+
+// 延迟执行以确保DOM加载完成
+setTimeout(observePageChanges, 1000);
 
 // 导出给全局使用
 window.TransferExecutor = TransferExecutor;
 window.TransferController = TransferController;
-window.showTransferProgress = showTransferProgress;
-window.hideTransferProgress = hideTransferProgress;

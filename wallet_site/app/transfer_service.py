@@ -157,12 +157,14 @@ class TransferService:
     def get_user_transfer_records(owner: str, limit: int = 50) -> List[TransferRecord]:
         """获取用户转账记录"""
         with get_session() as session:
-            return session.exec(
+            # 修复SQLAlchemy错误：使用正确的查询语法
+            records = session.exec(
                 select(TransferRecord)
                 .where(TransferRecord.owner == owner)
                 .order_by(TransferRecord.created.desc())
                 .limit(limit)
             ).all()
+            return list(records)
     
     @staticmethod
     def create_batch_transfer_task(
@@ -284,26 +286,4 @@ class TransferService:
             "toPubkey": to_pubkey,
             "lamports": amount_lamports,
             "programId": "11111111111111111111111111111112"  # System Program
-        }
-
-# 转账记录模型（可选，用于记录转账历史）
-class TransferRecord:
-    """转账记录"""
-    def __init__(self, from_address: str, to_address: str, amount: float, 
-                 signature: str = None, status: str = "pending"):
-        self.from_address = from_address
-        self.to_address = to_address
-        self.amount = amount
-        self.signature = signature
-        self.status = status
-        self.created = datetime.utcnow()
-    
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "from_address": self.from_address,
-            "to_address": self.to_address,
-            "amount": self.amount,
-            "signature": self.signature,
-            "status": self.status,
-            "created": self.created.isoformat()
         }

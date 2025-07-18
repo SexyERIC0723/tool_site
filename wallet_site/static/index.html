@@ -8,278 +8,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/styles.css" />
-  <style>
-    /* 转账页面专用样式 */
-    .transfer-tabs {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 0;
-    }
-
-    .tab-btn {
-      background: #f5f5f5;
-      color: var(--text-secondary);
-      border: 2px solid var(--border-color);
-      padding: 12px 20px;
-      border-radius: 8px 8px 0 0;
-      cursor: pointer;
-      font-weight: 500;
-      transition: var(--transition);
-      flex: 1;
-    }
-
-    .tab-btn.active {
-      background: white;
-      color: var(--accent-color);
-      border-color: var(--accent-color);
-      border-bottom-color: white;
-    }
-
-    .tab-btn:hover:not(.active) {
-      background: #eee;
-    }
-
-    .transfer-content {
-      display: none;
-    }
-
-    .transfer-content.active {
-      display: block;
-    }
-
-    .transfer-form {
-      margin-bottom: 24px;
-    }
-
-    .full-width {
-      grid-column: 1 / -1;
-    }
-
-    .validation-info {
-      margin-top: 8px;
-      padding: 8px 12px;
-      border-radius: 4px;
-      font-size: 13px;
-      font-weight: 500;
-    }
-
-    .validation-info.valid {
-      background: #e8f5e8;
-      color: #2e7d32;
-      border: 1px solid #81c784;
-    }
-
-    .validation-info.invalid {
-      background: #ffebee;
-      color: #c62828;
-      border: 1px solid #e57373;
-    }
-
-    .validation-info.loading {
-      background: #e3f2fd;
-      color: #1976d2;
-      border: 1px solid #90caf9;
-    }
-
-    .transfer-preview {
-      background: #f8f9fa;
-      border: 2px solid var(--border-color);
-      border-radius: 8px;
-      padding: 20px;
-      margin: 20px 0;
-    }
-
-    .transfer-preview h4 {
-      margin: 0 0 16px 0;
-      color: var(--text-primary);
-      font-size: 16px;
-    }
-
-    .preview-content, .batch-preview-summary {
-      display: grid;
-      gap: 12px;
-    }
-
-    .preview-item, .summary-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 0;
-      border-bottom: 1px solid #eee;
-    }
-
-    .preview-item:last-child, .summary-item:last-child {
-      border-bottom: none;
-    }
-
-    .preview-item .label, .summary-item .label {
-      font-weight: 500;
-      color: var(--text-secondary);
-    }
-
-    .preview-item .value, .summary-item .value {
-      font-family: monospace;
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-
-    .preview-item .value.highlight, .summary-item .value.highlight {
-      color: var(--accent-color);
-    }
-
-    .preview-item .value.total, .summary-item .value.total {
-      color: var(--primary-color);
-      font-size: 18px;
-    }
-
-    .wallet-selection {
-      margin: 24px 0;
-    }
-
-    .wallet-selection h4 {
-      margin: 0 0 16px 0;
-      color: var(--text-primary);
-    }
-
-    .batch-wallet-list {
-      max-height: 300px;
-      overflow-y: auto;
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-      background: white;
-    }
-
-    .batch-wallet-item {
-      display: flex;
-      align-items: center;
-      padding: 12px 16px;
-      border-bottom: 1px solid #f0f0f0;
-      transition: var(--transition);
-    }
-
-    .batch-wallet-item:last-child {
-      border-bottom: none;
-    }
-
-    .batch-wallet-item:hover {
-      background: #f8f9fa;
-    }
-
-    .batch-wallet-item input[type="checkbox"] {
-      margin-right: 12px;
-    }
-
-    .wallet-info {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .wallet-address {
-      font-family: monospace;
-      font-size: 12px;
-      color: var(--text-secondary);
-      word-break: break-all;
-    }
-
-    .wallet-name {
-      font-weight: 500;
-      color: var(--text-primary);
-      margin-bottom: 2px;
-    }
-
-    .wallet-balance {
-      font-family: monospace;
-      font-weight: 600;
-      color: var(--success-color);
-      margin-left: 12px;
-      font-size: 13px;
-    }
-
-    .batch-preview-details {
-      margin-top: 20px;
-      max-height: 200px;
-      overflow-y: auto;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-    }
-
-    .batch-detail-item {
-      display: grid;
-      grid-template-columns: 1fr auto auto auto;
-      gap: 12px;
-      padding: 8px 12px;
-      border-bottom: 1px solid #f0f0f0;
-      font-size: 12px;
-      align-items: center;
-    }
-
-    .batch-detail-item:last-child {
-      border-bottom: none;
-    }
-
-    .batch-detail-item.insufficient {
-      background: #fff3e0;
-      color: #e65100;
-    }
-
-    .secondary-btn {
-      background: #f5f5f5;
-      color: var(--text-primary);
-      border: 2px solid var(--border-color);
-    }
-
-    .secondary-btn:hover {
-      background: #eee;
-      border-color: var(--accent-color);
-    }
-
-    .warning-banner {
-      background: linear-gradient(135deg, #ff9800, #f57c00);
-      color: white;
-      padding: 16px 20px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .warning-banner .icon {
-      font-size: 20px;
-    }
-
-    .warning-banner .content {
-      flex: 1;
-    }
-
-    .warning-banner .title {
-      font-weight: 600;
-      margin-bottom: 4px;
-    }
-
-    .warning-banner .text {
-      font-size: 14px;
-      opacity: 0.9;
-    }
-
-    /* 响应式 */
-    @media (max-width: 768px) {
-      .transfer-tabs {
-        flex-direction: column;
-      }
-
-      .batch-detail-item {
-        grid-template-columns: 1fr;
-        gap: 4px;
-      }
-
-      .preview-item, .summary-item {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 4px;
-      }
-    }
-  </style>
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -574,6 +302,11 @@
                   <div id="batchAddressValidation" class="validation-info" style="display: none;"></div>
                   <small>所有选中的钱包都将向此地址转账</small>
                 </div>
+                <div class="form-group">
+                  <label>每个钱包转账金额 (SOL)</label>
+                  <input type="number" name="amount_per_wallet" step="0.000001" min="0.000001" placeholder="0.000000" required />
+                  <small>每个钱包转账的固定金额</small>
+                </div>
               </div>
 
               <!-- 多个地址模式 -->
@@ -597,22 +330,22 @@
                 </div>
               </div>
 
-              <!-- 内部分发模式 -->
+              <!-- 内部分发模式 - 优化后的UI -->
               <div class="recipient-config internal-mode">
                 <div class="form-group full-width">
                   <label>选择接收钱包</label>
                   <div class="internal-wallet-grid" id="internalWalletGrid">
                     <!-- 将由JavaScript动态填充 -->
                   </div>
-                  <small>选择您的钱包作为接收方，支持内部资金分配</small>
+                  <small>选择您的钱包作为接收方，支持内部资金分配。显示完整地址便于识别钱包。</small>
+                </div>
+                <div class="form-group">
+                  <label>每个钱包转账金额 (SOL)</label>
+                  <input type="number" name="amount_per_wallet" step="0.000001" min="0.000001" placeholder="0.000000" required />
+                  <small>每个钱包转账的固定金额</small>
                 </div>
               </div>
 
-              <div class="form-group single-mode-only">
-                <label>每个钱包转账金额 (SOL)</label>
-                <input type="number" name="amount_per_wallet" step="0.000001" min="0.000001" placeholder="0.000000" required />
-                <small>每个钱包转账的固定金额</small>
-              </div>
               <div class="form-group full-width">
                 <label>备注 (可选)</label>
                 <input type="text" name="memo" placeholder="批量转账备注..." maxlength="100" />
@@ -737,6 +470,8 @@
       </div>
     </div>
   </div>
+
+  <!-- 导入钱包弹窗 -->
   <div id="importModal" class="modal" hidden>
     <div class="modal-content">
       <div class="modal-header">
@@ -767,6 +502,29 @@
   </div>
 
   <!-- 业务脚本 -->
+  <script>
+    // 定义全局变量和函数，确保在模块加载前就可用
+    window.authFetch = null;
+    window.alertMsg = null;
+    window.currentRecipientMode = 'single';
+    window.selectedBatchWallets = new Set();
+    window.selectedInternalWallets = new Set();
+    window.fromWalletSelectorInstance = null;
+    window.userWallets = [];
+    
+    // 添加一些全局函数供脚本使用
+    window.updateSelectedBatchWallets = function() {
+      // 这个函数会在 app.js 中被重新定义
+    };
+    
+    window.addRecipient = function() {
+      // 这个函数会在 app.js 中被重新定义
+    };
+    
+    window.loadTransferRecords = function() {
+      // 这个函数会在 app.js 中被重新定义
+    };
+  </script>
   <script type="module" src="/static/app.js"></script>
   <script type="module" src="/static/transfer.js"></script>
 </body>

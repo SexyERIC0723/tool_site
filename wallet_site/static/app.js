@@ -44,8 +44,8 @@ const walletActionsEl = $('#walletActions');
 const totalBalanceBox = $('#totalBalanceBox');
 
 // 转账页面元素
-const tabBtns = $('.tab-btn');
-const transferContents = $('.transfer-content');
+const tabBtns = $$('.tab-btn');
+const transferContents = $$('.transfer-content');
 const singleTransferForm = $('#singleTransferForm');
 const batchTransferForm = $('#batchTransferForm');
 const fromWalletSelector = $('#fromWalletSelector');
@@ -64,8 +64,8 @@ const internalTransferBtn = $('#internalTransferBtn');
 const batchInternalTransferBtn = $('#batchInternalTransferBtn');
 const internalWalletModal = $('#internalWalletModal');
 const internalWalletList = $('#internalWalletList');
-const modeBtns = $('.mode-btn');
-const recipientConfigs = $('.recipient-config');
+const modeBtns = $$('.mode-btn');
+const recipientConfigs = $$('.recipient-config');
 const addRecipientBtn = $('#addRecipientBtn');
 const recipientList = $('#recipientList');
 const internalWalletGrid = $('#internalWalletGrid');
@@ -89,12 +89,13 @@ let currentRecipientMode = 'single';
 let userWallets = [];
 let transferFee = 0;
 let currentInternalTransferTarget = null; // 'single' 或 'batch'
+let fromWalletSelectorInstance = null; // 钱包选择器实例
 
 /* ---------- 页面切换 ---------- */
 const showPage = (pageName) => {
   // 隐藏所有页面
   Object.values(pages).forEach(page => {
-    page.classList.remove('active');
+    if (page) page.classList.remove('active');
   });
   
   // 显示目标页面
@@ -133,54 +134,54 @@ navLinks.forEach(link => {
 /* ---------- 转账标签切换 ---------- */
 const showTransferTab = (tabName) => {
   // 更新标签状态
-  if (tabBtns && tabBtns.length > 0) {
-    tabBtns.forEach(btn => {
-      btn.classList.remove('active');
-      if (btn.dataset.tab === tabName) {
-        btn.classList.add('active');
-      }
-    });
-  }
+  tabBtns.forEach(btn => {
+    btn.classList.remove('active');
+    if (btn.dataset.tab === tabName) {
+      btn.classList.add('active');
+    }
+  });
   
   // 更新内容显示
-  if (transferContents && transferContents.length > 0) {
-    transferContents.forEach(content => {
-      content.classList.remove('active');
-      if (content.id === `${tabName}Transfer`) {
-        content.classList.add('active');
-      }
-    });
-  }
+  transferContents.forEach(content => {
+    content.classList.remove('active');
+    if (content.id === `${tabName}Transfer`) {
+      content.classList.add('active');
+    }
+  });
   
   currentTransferTab = tabName;
 };
 
 // 标签点击事件
-if (tabBtns && tabBtns.length > 0) {
-  tabBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      showTransferTab(btn.dataset.tab);
-    });
+tabBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    showTransferTab(btn.dataset.tab);
   });
-}
+});
 
 /* ---------- 通用工具 ---------- */
 const renderLogin = () => {
-  loginBtn.textContent = JWT
-    ? `已登录: ${WALLET.slice(0, 4)}…${WALLET.slice(-4)}`
-    : '连接钱包 / 登录';
-  loginBtn.classList.toggle('connected', !!JWT);
+  if (loginBtn) {
+    loginBtn.textContent = JWT
+      ? `已登录: ${WALLET.slice(0, 4)}…${WALLET.slice(-4)}`
+      : '连接钱包 / 登录';
+    loginBtn.classList.toggle('connected', !!JWT);
+  }
 };
 
 const alertMsg = (m) => { 
-  alertEl.textContent = m; 
-  alertEl.style.display = 'block'; 
-  // 5秒后自动隐藏
-  setTimeout(hideAlert, 5000);
+  if (alertEl) {
+    alertEl.textContent = m; 
+    alertEl.style.display = 'block'; 
+    // 5秒后自动隐藏
+    setTimeout(hideAlert, 5000);
+  }
 };
 
 const hideAlert = () => { 
-  alertEl.style.display = 'none'; 
+  if (alertEl) {
+    alertEl.style.display = 'none'; 
+  }
 };
 
 const logout = () => {
@@ -206,99 +207,101 @@ const authFetch = async (url, opt = {}) => {
 };
 
 /* ---------- 登录/登出 ---------- */
-loginBtn.onclick = async () => {
-  console.log('🔗 连接钱包按钮被点击');
-  
-  if (JWT) { 
-    console.log('🚪 用户已登录，执行登出');
-    logout(); 
-    return; 
-  }
-  
-  if (!window.solana?.isPhantom) { 
-    console.error('❌ Phantom钱包未安装');
-    alert('请安装 Phantom 钱包扩展'); 
-    return; 
-  }
-
-  try {
-    console.log('⏳ 等待bs58库加载...');
-    await bs58Ready;
-    console.log('✅ bs58库已加载');
+if (loginBtn) {
+  loginBtn.onclick = async () => {
+    console.log('🔗 连接钱包按钮被点击');
     
-    // 显示连接中状态
-    loginBtn.textContent = '连接中...';
-    loginBtn.disabled = true;
-    
-    console.log('🔌 尝试连接Phantom钱包...');
-    const { publicKey } = await window.solana.connect();
-    WALLET = publicKey.toString();
-    console.log('✅ 钱包连接成功:', WALLET);
-
-    console.log('🔢 获取nonce...');
-    const { nonce } = await (await fetch(`/api/nonce?wallet=${WALLET}`)).json();
-    console.log('✅ nonce获取成功:', nonce);
-    
-    const msg = `Sign in to WalletGen\nNonce: ${nonce}`;
-    const bytes = new TextEncoder().encode(msg);
-    
-    console.log('✍️ 请求用户签名...');
-    const sig = await window.solana.signMessage(bytes);
-    const sigB58 = bs58.encode(sig.signature ?? sig);
-    console.log('✅ 用户签名成功');
-
-    if (bs58.decode(sigB58).length !== 64) {
-      throw new Error('签名长度异常');
-    }
-
-    const body = new URLSearchParams({ 
-      wallet: WALLET, 
-      message: msg, 
-      signature: sigB58 
-    });
-    
-    console.log('🌐 发送登录请求...');
-    const r = await fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body
-    });
-    
-    if (!r.ok) {
-      const d = (await r.json()).detail || '';
-      throw new Error(`登录失败: ${d}`);
+    if (JWT) { 
+      console.log('🚪 用户已登录，执行登出');
+      logout(); 
+      return; 
     }
     
-    JWT = (await r.json()).token;
-    localStorage.setItem('walletJWT', JWT);
-    localStorage.setItem('walletAddr', WALLET);
-    
-    console.log('🎉 登录成功!');
-    renderLogin();
-    hideAlert();
-    
-    // 刷新当前页面数据
-    if (currentPage === 'generate') {
-      loadHist();
-    } else if (currentPage === 'manage') {
-      loadWallets();
-    } else if (currentPage === 'transfer') {
-      initTransferPage();
+    if (!window.solana?.isPhantom) { 
+      console.error('❌ Phantom钱包未安装');
+      alert('请安装 Phantom 钱包扩展'); 
+      return; 
     }
-    
-  } catch (e) { 
-    console.error('❌ 登录失败:', e); 
-    alertMsg(e.message); 
-  } finally {
-    loginBtn.disabled = false;
-    renderLogin();
-  }
-};
 
-loginBtn.onmouseenter = () => { 
-  if (JWT) loginBtn.textContent = '退出登录'; 
-};
-loginBtn.onmouseleave = renderLogin;
+    try {
+      console.log('⏳ 等待bs58库加载...');
+      await bs58Ready;
+      console.log('✅ bs58库已加载');
+      
+      // 显示连接中状态
+      loginBtn.textContent = '连接中...';
+      loginBtn.disabled = true;
+      
+      console.log('🔌 尝试连接Phantom钱包...');
+      const { publicKey } = await window.solana.connect();
+      WALLET = publicKey.toString();
+      console.log('✅ 钱包连接成功:', WALLET);
+
+      console.log('🔢 获取nonce...');
+      const { nonce } = await (await fetch(`/api/nonce?wallet=${WALLET}`)).json();
+      console.log('✅ nonce获取成功:', nonce);
+      
+      const msg = `Sign in to WalletGen\nNonce: ${nonce}`;
+      const bytes = new TextEncoder().encode(msg);
+      
+      console.log('✍️ 请求用户签名...');
+      const sig = await window.solana.signMessage(bytes);
+      const sigB58 = bs58.encode(sig.signature ?? sig);
+      console.log('✅ 用户签名成功');
+
+      if (bs58.decode(sigB58).length !== 64) {
+        throw new Error('签名长度异常');
+      }
+
+      const body = new URLSearchParams({ 
+        wallet: WALLET, 
+        message: msg, 
+        signature: sigB58 
+      });
+      
+      console.log('🌐 发送登录请求...');
+      const r = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body
+      });
+      
+      if (!r.ok) {
+        const d = (await r.json()).detail || '';
+        throw new Error(`登录失败: ${d}`);
+      }
+      
+      JWT = (await r.json()).token;
+      localStorage.setItem('walletJWT', JWT);
+      localStorage.setItem('walletAddr', WALLET);
+      
+      console.log('🎉 登录成功!');
+      renderLogin();
+      hideAlert();
+      
+      // 刷新当前页面数据
+      if (currentPage === 'generate') {
+        loadHist();
+      } else if (currentPage === 'manage') {
+        loadWallets();
+      } else if (currentPage === 'transfer') {
+        initTransferPage();
+      }
+      
+    } catch (e) { 
+      console.error('❌ 登录失败:', e); 
+      alertMsg(e.message); 
+    } finally {
+      loginBtn.disabled = false;
+      renderLogin();
+    }
+  };
+
+  loginBtn.onmouseenter = () => { 
+    if (JWT) loginBtn.textContent = '退出登录'; 
+  };
+  loginBtn.onmouseleave = renderLogin;
+}
 
 /* ---------- 批量生成 ---------- */
 if (genForm) {
@@ -323,13 +326,15 @@ if (genForm) {
     }
 
     // 显示生成中状态
-    spin.hidden = false;
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<span class="btn-icon">⏳</span> 生成中...';
+    if (spin) spin.hidden = false;
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="btn-icon">⏳</span> 生成中...';
+    }
     hideAlert();
-    statusEl.textContent = '⏳ 正在生成钱包，请稍候...';
-    resultEl.innerHTML = '';
-    resultSection.style.display = 'block';
+    if (statusEl) statusEl.textContent = '⏳ 正在生成钱包，请稍候...';
+    if (resultEl) resultEl.innerHTML = '';
+    if (resultSection) resultSection.style.display = 'block';
 
     try {
       const r = await authFetch('/api/generate', {
@@ -344,29 +349,35 @@ if (genForm) {
       
       const d = await r.json();
       
-      statusEl.innerHTML = `
-        <span style="color: var(--success-color);">🎉 成功生成 ${d.count} 个钱包</span>
-        <a href="#" onclick="downloadJob('${d.job_id}'); return false;" 
-           style="margin-left: 16px; color: var(--accent-color); text-decoration: none; font-weight: 500;">
-          📥 下载文件包
-        </a>
-      `;
+      if (statusEl) {
+        statusEl.innerHTML = `
+          <span style="color: var(--success-color);">🎉 成功生成 ${d.count} 个钱包</span>
+          <a href="#" onclick="downloadJob('${d.job_id}'); return false;" 
+             style="margin-left: 16px; color: var(--accent-color); text-decoration: none; font-weight: 500;">
+            📥 下载文件包
+          </a>
+        `;
+      }
       
       renderPubkeys(d.pubkeys);
       loadHist();
       
     } catch (e) { 
       alertMsg(e.message);
-      resultSection.style.display = 'none';
+      if (resultSection) resultSection.style.display = 'none';
     } finally { 
-      spin.hidden = true; 
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = '<span class="btn-icon">🚀</span> 开始生成';
+      if (spin) spin.hidden = true; 
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span class="btn-icon">🚀</span> 开始生成';
+      }
     }
   };
 }
 
 const renderPubkeys = (arr) => {
+  if (!resultEl) return;
+  
   resultEl.innerHTML = `
     <div style="margin-bottom: 16px; font-weight: 500; color: var(--text-secondary);">
       生成的钱包地址：
@@ -410,7 +421,6 @@ if (resultEl) {
           e.target.style.background = 'var(--accent-color)';
         }, 2000);
       }).catch(() => {
-        // 如果复制失败，手动选中文本
         alert(`请手动复制: ${pk}`);
       });
     }
@@ -419,6 +429,8 @@ if (resultEl) {
 
 /* ---------- 生成历史 ---------- */
 const loadHist = async () => {
+  if (!histEl) return;
+  
   if (!JWT) { 
     histEl.innerHTML = '<p class="muted">请先登录查看生成历史</p>'; 
     return; 
@@ -469,14 +481,16 @@ const loadHist = async () => {
 
 /* ---------- 钱包管理 ---------- */
 const loadWallets = async () => {
+  if (!walletListEl) return;
+  
   if (!JWT) { 
     walletListEl.innerHTML = '<p class="muted">请先连接钱包登录</p>';
-    walletActionsEl.style.display = 'none';
-    totalBalanceBox.style.display = 'none';
+    if (walletActionsEl) walletActionsEl.style.display = 'none';
+    if (totalBalanceBox) totalBalanceBox.style.display = 'none';
     return; 
   }
   
-  walletActionsEl.style.display = 'flex';
+  if (walletActionsEl) walletActionsEl.style.display = 'flex';
   
   try {
     const r = await authFetch('/api/wallets');
@@ -592,9 +606,13 @@ const updateSelectedWallets = () => {
   });
   
   // 更新按钮状态
-  $('#exportBtn').disabled = !selectedWallets.size;
-  $('#balanceBtn').disabled = !selectedWallets.size;
-  $('#deleteBtn').disabled = !selectedWallets.size;
+  const exportBtn = $('#exportBtn');
+  const balanceBtn = $('#balanceBtn');
+  const deleteBtn = $('#deleteBtn');
+  
+  if (exportBtn) exportBtn.disabled = !selectedWallets.size;
+  if (balanceBtn) balanceBtn.disabled = !selectedWallets.size;
+  if (deleteBtn) deleteBtn.disabled = !selectedWallets.size;
 };
 
 /* ---------- 转账模式管理 ---------- */
@@ -608,7 +626,9 @@ const setupTransferModes = () => {
   });
   
   // 添加接收方按钮
-  addRecipientBtn?.addEventListener('click', addRecipient);
+  if (addRecipientBtn) {
+    addRecipientBtn.addEventListener('click', addRecipient);
+  }
   
   // 初始化一个接收方项
   updateRecipientRemoveButtons();
@@ -700,28 +720,46 @@ const updateRecipientNumbers = () => {
 /* ---------- 内部转账管理 ---------- */
 const setupInternalTransfer = () => {
   // 单笔转账内部转账按钮
-  internalTransferBtn?.addEventListener('click', () => {
-    currentInternalTransferTarget = 'single';
-    showInternalWalletModal();
-  });
+  if (internalTransferBtn) {
+    internalTransferBtn.addEventListener('click', () => {
+      currentInternalTransferTarget = 'single';
+      showInternalWalletModal();
+    });
+  }
   
   // 批量转账内部转账按钮
-  batchInternalTransferBtn?.addEventListener('click', () => {
-    currentInternalTransferTarget = 'batch';
-    showInternalWalletModal();
-  });
+  if (batchInternalTransferBtn) {
+    batchInternalTransferBtn.addEventListener('click', () => {
+      currentInternalTransferTarget = 'batch';
+      showInternalWalletModal();
+    });
+  }
   
   // 弹窗事件
-  $('#internalWalletModalClose')?.addEventListener('click', hideInternalWalletModal);
-  $('#cancelInternalWallet')?.addEventListener('click', hideInternalWalletModal);
-  $('#confirmInternalWallet')?.addEventListener('click', confirmInternalWalletSelection);
+  const internalModalClose = $('#internalWalletModalClose');
+  const cancelInternalWallet = $('#cancelInternalWallet');
+  const confirmInternalWallet = $('#confirmInternalWallet');
+  
+  if (internalModalClose) {
+    internalModalClose.addEventListener('click', hideInternalWalletModal);
+  }
+  
+  if (cancelInternalWallet) {
+    cancelInternalWallet.addEventListener('click', hideInternalWalletModal);
+  }
+  
+  if (confirmInternalWallet) {
+    confirmInternalWallet.addEventListener('click', confirmInternalWalletSelection);
+  }
   
   // 点击背景关闭弹窗
-  internalWalletModal?.addEventListener('click', (e) => {
-    if (e.target === internalWalletModal) {
-      hideInternalWalletModal();
-    }
-  });
+  if (internalWalletModal) {
+    internalWalletModal.addEventListener('click', (e) => {
+      if (e.target === internalWalletModal) {
+        hideInternalWalletModal();
+      }
+    });
+  }
 };
 
 const showInternalWalletModal = () => {
@@ -828,38 +866,64 @@ const loadInternalWalletGrid = () => {
     return;
   }
   
+  // 优化后的HTML结构，显示完整地址
   internalWalletGrid.innerHTML = userWallets.map(wallet => `
-    <div class="internal-wallet-card" data-address="${wallet.public_key}">
-      <div class="checkbox">✓</div>
-      <div class="internal-wallet-info">
-        <div class="wallet-avatar">
-          ${wallet.name ? wallet.name.charAt(0).toUpperCase() : '#'}
-        </div>
-        <div class="wallet-details">
-          <div class="wallet-name">${wallet.name || `钱包 #${wallet.id}`}</div>
-          <div class="wallet-address-short">${wallet.public_key.slice(0, 8)}...${wallet.public_key.slice(-4)}</div>
-        </div>
+    <div class="internal-wallet-item" data-address="${wallet.public_key}">
+      <input type="checkbox" class="internal-wallet-select" value="${wallet.public_key}" />
+      <div class="wallet-avatar">
+        ${wallet.name ? wallet.name.charAt(0).toUpperCase() : '#'}
       </div>
-      <div class="internal-wallet-meta">
-        <span>余额: ${wallet.balance ? wallet.balance.toFixed(4) : '0.0000'} SOL</span>
+      <div class="wallet-details">
+        <div class="wallet-name">${wallet.name || `钱包 #${wallet.id}`}</div>
+        <div class="wallet-address-full">${wallet.public_key}</div>
       </div>
+      <div class="wallet-balance">${wallet.balance ? wallet.balance.toFixed(4) : '0.0000'} SOL</div>
     </div>
   `).join('');
   
   // 绑定选择事件
-  internalWalletGrid.querySelectorAll('.internal-wallet-card').forEach(card => {
-    card.addEventListener('click', () => {
-      const address = card.dataset.address;
-      if (selectedInternalWallets.has(address)) {
-        selectedInternalWallets.delete(address);
-        card.classList.remove('selected');
-      } else {
-        selectedInternalWallets.add(address);
-        card.classList.add('selected');
-      }
+  internalWalletGrid.querySelectorAll('.internal-wallet-item').forEach(item => {
+    const checkbox = item.querySelector('.internal-wallet-select');
+    const address = item.dataset.address;
+    
+    // 点击整个项目切换选择状态
+    item.addEventListener('click', (e) => {
+      // 如果点击的是复选框本身，让其正常处理
+      if (e.target === checkbox) return;
+      
+      // 切换复选框状态
+      checkbox.checked = !checkbox.checked;
+      
+      // 触发选择状态更新
+      updateInternalWalletSelection(address, checkbox.checked);
     });
+    
+    // 复选框变化事件
+    checkbox.addEventListener('change', (e) => {
+      updateInternalWalletSelection(address, e.target.checked);
+    });
+    
+    // 恢复之前的选择状态
+    if (selectedInternalWallets.has(address)) {
+      checkbox.checked = true;
+      item.classList.add('selected');
+    }
   });
 };
+
+const updateInternalWalletSelection = (address, isSelected) => {
+  const item = internalWalletGrid.querySelector(`[data-address="${address}"]`);
+  
+  if (isSelected) {
+    selectedInternalWallets.add(address);
+    if (item) item.classList.add('selected');
+  } else {
+    selectedInternalWallets.delete(address);
+    if (item) item.classList.remove('selected');
+  }
+};
+
+/* ---------- 自定义钱包选择器 ---------- */
 class CustomWalletSelector {
   constructor(selectorEl, displayEl, dropdownEl, hiddenInputEl) {
     this.selector = selectorEl;
@@ -873,6 +937,11 @@ class CustomWalletSelector {
   }
   
   init() {
+    if (!this.selector || !this.display || !this.dropdown || !this.hiddenInput) {
+      console.warn('钱包选择器元素缺失');
+      return;
+    }
+    
     // 点击显示区域切换下拉菜单
     this.display.addEventListener('click', () => {
       this.toggle();
@@ -892,6 +961,8 @@ class CustomWalletSelector {
   }
   
   renderOptions() {
+    if (!this.dropdown) return;
+    
     this.dropdown.innerHTML = this.wallets.map(wallet => `
       <div class="wallet-option" data-address="${wallet.public_key}">
         <div class="wallet-avatar">
@@ -979,8 +1050,13 @@ class CustomWalletSelector {
 // 初始化转账页面
 const initTransferPage = async () => {
   if (!JWT) {
-    fromWalletSelect.innerHTML = '<option value="">请先登录...</option>';
-    $('#transferRecords').innerHTML = '<p class="muted">请先登录查看转账记录</p>';
+    if (fromWalletSelectorInstance) {
+      fromWalletSelectorInstance.reset();
+    }
+    const transferRecordsEl = $('#transferRecords');
+    if (transferRecordsEl) {
+      transferRecordsEl.innerHTML = '<p class="muted">请先登录查看转账记录</p>';
+    }
     return;
   }
   
@@ -995,6 +1071,31 @@ const initTransferPage = async () => {
   
   // 加载转账记录
   await loadTransferRecords();
+  
+  // 初始化转账功能
+  setupTransferModes();
+  setupInternalTransfer();
+  
+  // 初始化钱包选择器
+  initWalletSelector();
+};
+
+// 初始化钱包选择器
+const initWalletSelector = () => {
+  // 初始化自定义钱包选择器
+  if (fromWalletSelector && fromWalletDisplay && fromWalletDropdown && selectedFromAddress) {
+    fromWalletSelectorInstance = new CustomWalletSelector(
+      fromWalletSelector,
+      fromWalletDisplay,
+      fromWalletDropdown,
+      selectedFromAddress
+    );
+    
+    // 如果有钱包数据，设置到选择器
+    if (userWallets.length > 0) {
+      fromWalletSelectorInstance.setWallets(userWallets);
+    }
+  }
 };
 
 // 加载转账手续费
@@ -1004,11 +1105,15 @@ const loadTransferFee = async () => {
     if (r.ok) {
       const { fee } = await r.json();
       transferFee = fee;
-      feeDisplay.value = `${fee.toFixed(6)} SOL`;
+      if (feeDisplay) {
+        feeDisplay.value = `${fee.toFixed(6)} SOL`;
+      }
     }
   } catch (e) {
     console.error('加载手续费失败:', e);
-    feeDisplay.value = '0.000005 SOL (估算)';
+    if (feeDisplay) {
+      feeDisplay.value = '0.000005 SOL (估算)';
+    }
   }
 };
 
@@ -1032,6 +1137,8 @@ const loadUserWalletsForTransfer = async () => {
 
 // 加载批量转账钱包列表
 const loadBatchWalletList = () => {
+  if (!batchWalletList) return;
+  
   if (!userWallets.length) {
     batchWalletList.innerHTML = '<p class="muted">暂无钱包</p>';
     return;
@@ -1040,6 +1147,9 @@ const loadBatchWalletList = () => {
   batchWalletList.innerHTML = userWallets.map(w => `
     <div class="batch-wallet-item">
       <input type="checkbox" class="batch-wallet-select" value="${w.id}" data-address="${w.public_key}">
+      <div class="wallet-avatar">
+        ${w.name ? w.name.charAt(0).toUpperCase() : '#'}
+      </div>
       <div class="wallet-info">
         <div class="wallet-name">${w.name || `钱包 #${w.id}`}</div>
         <div class="wallet-address">${w.public_key}</div>
@@ -1063,6 +1173,8 @@ const updateSelectedBatchWallets = () => {
 
 // 地址验证
 const validateAddress = async (input, validationEl) => {
+  if (!input || !validationEl) return false;
+  
   const address = input.value.trim();
   
   if (!address) {
@@ -1123,246 +1235,262 @@ if (batchToAddressInput) {
 }
 
 // 单笔转账预览
-$('#previewTransferBtn')?.addEventListener('click', async () => {
-  const fromAddress = selectedFromAddress.value;
-  const toAddress = toAddressInput.value;
-  const amount = singleTransferForm.querySelector('input[name="amount"]').value;
-  const memo = singleTransferForm.querySelector('input[name="memo"]').value;
-  
-  if (!fromAddress || !toAddress || !amount) {
-    alertMsg('请填写完整的转账信息');
-    return;
-  }
-  
-  const btn = $('#previewTransferBtn');
-  const originalText = btn.innerHTML;
-  btn.innerHTML = '<span class="btn-icon">⏳</span> 预览中...';
-  btn.disabled = true;
-  
-  try {
-    const r = await authFetch('/api/transfer/prepare', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from_address: fromAddress,
-        to_address: toAddress,
-        amount: parseFloat(amount),
-        memo: memo
-      })
-    });
+const previewTransferBtn = $('#previewTransferBtn');
+if (previewTransferBtn) {
+  previewTransferBtn.addEventListener('click', async () => {
+    const fromAddress = selectedFromAddress.value;
+    const toAddress = toAddressInput.value;
+    const amount = singleTransferForm.querySelector('input[name="amount"]').value;
+    const memo = singleTransferForm.querySelector('input[name="memo"]').value;
     
-    if (!r.ok) {
-      const error = await r.json();
-      throw new Error(error.detail || '预览失败');
-    }
-    
-    const result = await r.json();
-    
-    // 显示预览信息
-    $('#previewFrom').textContent = `${result.wallet_name || '未命名'} (${result.from_address.slice(0, 8)}...${result.from_address.slice(-4)})`;
-    $('#previewTo').textContent = `${result.to_address.slice(0, 8)}...${result.to_address.slice(-4)}`;
-    $('#previewAmount').textContent = `${result.amount.toFixed(6)} SOL`;
-    $('#previewFee').textContent = `${result.fee.toFixed(6)} SOL`;
-    $('#previewTotal').textContent = `${result.total_required.toFixed(6)} SOL`;
-    $('#previewRemaining').textContent = `${result.remaining_balance.toFixed(6)} SOL`;
-    
-    transferPreview.style.display = 'block';
-    $('#executeTransferBtn').style.display = 'inline-flex';
-    
-  } catch (e) {
-    alertMsg(e.message);
-  } finally {
-    btn.innerHTML = originalText;
-    btn.disabled = false;
-  }
-});
-
-// 批量转账预览
-$('#previewBatchTransferBtn')?.addEventListener('click', async () => {
-  let requestData;
-  
-  // 根据不同模式构建请求数据
-  if (currentRecipientMode === 'single') {
-    // 单一地址模式
-    const toAddress = batchToAddressInput.value;
-    const amountPerWallet = batchTransferForm.querySelector('input[name="amount_per_wallet"]').value;
-    const memo = batchTransferForm.querySelector('input[name="memo"]').value;
-    
-    if (!toAddress || !amountPerWallet || selectedBatchWallets.size === 0) {
-      alertMsg('请填写完整的批量转账信息并选择钱包');
+    if (!fromAddress || !toAddress || !amount) {
+      alertMsg('请填写完整的转账信息');
       return;
     }
     
-    requestData = {
-      from_wallet_ids: Array.from(selectedBatchWallets),
-      to_address: toAddress,
-      amount_per_wallet: parseFloat(amountPerWallet),
-      memo: memo
-    };
+    const originalText = previewTransferBtn.innerHTML;
+    previewTransferBtn.innerHTML = '<span class="btn-icon">⏳</span> 预览中...';
+    previewTransferBtn.disabled = true;
     
-  } else if (currentRecipientMode === 'multiple') {
-    // 多个地址模式
-    const recipients = [];
-    const recipientItems = recipientList.querySelectorAll('.recipient-item');
-    
-    for (const item of recipientItems) {
-      const address = item.querySelector('.recipient-address').value;
-      const amount = item.querySelector('.recipient-amount').value;
+    try {
+      const r = await authFetch('/api/transfer/prepare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from_address: fromAddress,
+          to_address: toAddress,
+          amount: parseFloat(amount),
+          memo: memo
+        })
+      });
       
-      if (!address || !amount) {
-        alertMsg('请填写完整的接收方信息');
+      if (!r.ok) {
+        const error = await r.json();
+        throw new Error(error.detail || '预览失败');
+      }
+      
+      const result = await r.json();
+      
+      // 显示预览信息
+      const previewFrom = $('#previewFrom');
+      const previewTo = $('#previewTo');
+      const previewAmount = $('#previewAmount');
+      const previewFee = $('#previewFee');
+      const previewTotal = $('#previewTotal');
+      const previewRemaining = $('#previewRemaining');
+      
+      if (previewFrom) previewFrom.textContent = `${result.wallet_name || '未命名'} (${result.from_address.slice(0, 8)}...${result.from_address.slice(-4)})`;
+      if (previewTo) previewTo.textContent = `${result.to_address.slice(0, 8)}...${result.to_address.slice(-4)}`;
+      if (previewAmount) previewAmount.textContent = `${result.amount.toFixed(6)} SOL`;
+      if (previewFee) previewFee.textContent = `${result.fee.toFixed(6)} SOL`;
+      if (previewTotal) previewTotal.textContent = `${result.total_required.toFixed(6)} SOL`;
+      if (previewRemaining) previewRemaining.textContent = `${result.remaining_balance.toFixed(6)} SOL`;
+      
+      if (transferPreview) transferPreview.style.display = 'block';
+      const executeBtn = $('#executeTransferBtn');
+      if (executeBtn) executeBtn.style.display = 'inline-flex';
+      
+    } catch (e) {
+      alertMsg(e.message);
+    } finally {
+      previewTransferBtn.innerHTML = originalText;
+      previewTransferBtn.disabled = false;
+    }
+  });
+}
+
+// 批量转账预览
+const previewBatchTransferBtn = $('#previewBatchTransferBtn');
+if (previewBatchTransferBtn) {
+  previewBatchTransferBtn.addEventListener('click', async () => {
+    let requestData;
+    
+    // 根据不同模式构建请求数据
+    if (currentRecipientMode === 'single') {
+      // 单一地址模式
+      const toAddress = batchToAddressInput.value;
+      const amountPerWallet = batchTransferForm.querySelector('input[name="amount_per_wallet"]').value;
+      const memo = batchTransferForm.querySelector('input[name="memo"]').value;
+      
+      if (!toAddress || !amountPerWallet || selectedBatchWallets.size === 0) {
+        alertMsg('请填写完整的批量转账信息并选择钱包');
         return;
       }
       
-      recipients.push({
-        address: address,
-        amount: parseFloat(amount)
+      requestData = {
+        from_wallet_ids: Array.from(selectedBatchWallets),
+        to_address: toAddress,
+        amount_per_wallet: parseFloat(amountPerWallet),
+        memo: memo
+      };
+      
+    } else if (currentRecipientMode === 'multiple') {
+      // 多个地址模式
+      const recipients = [];
+      const recipientItems = recipientList.querySelectorAll('.recipient-item');
+      
+      for (const item of recipientItems) {
+        const address = item.querySelector('.recipient-address').value;
+        const amount = item.querySelector('.recipient-amount').value;
+        
+        if (!address || !amount) {
+          alertMsg('请填写完整的接收方信息');
+          return;
+        }
+        
+        recipients.push({
+          address: address,
+          amount: parseFloat(amount)
+        });
+      }
+      
+      if (recipients.length === 0 || selectedBatchWallets.size === 0) {
+        alertMsg('请添加接收方并选择发送钱包');
+        return;
+      }
+      
+      requestData = {
+        from_wallet_ids: Array.from(selectedBatchWallets),
+        recipients: recipients,
+        memo: batchTransferForm.querySelector('input[name="memo"]').value
+      };
+      
+    } else if (currentRecipientMode === 'internal') {
+      // 内部分发模式
+      if (selectedBatchWallets.size === 0 || selectedInternalWallets.size === 0) {
+        alertMsg('请选择发送钱包和接收钱包');
+        return;
+      }
+      
+      const amountPerWallet = batchTransferForm.querySelector('input[name="amount_per_wallet"]').value;
+      if (!amountPerWallet) {
+        alertMsg('请设置转账金额');
+        return;
+      }
+      
+      // 将选中的内部钱包地址转换为钱包ID
+      const selectedInternalWalletIds = [];
+      selectedInternalWallets.forEach(address => {
+        const wallet = userWallets.find(w => w.public_key === address);
+        if (wallet) {
+          selectedInternalWalletIds.push(wallet.id);
+        }
       });
+      
+      requestData = {
+        from_wallet_ids: Array.from(selectedBatchWallets),
+        to_wallet_ids: selectedInternalWalletIds,
+        amount_per_wallet: parseFloat(amountPerWallet),
+        memo: batchTransferForm.querySelector('input[name="memo"]').value
+      };
     }
     
-    if (recipients.length === 0 || selectedBatchWallets.size === 0) {
-      alertMsg('请添加接收方并选择发送钱包');
-      return;
+    const originalText = previewBatchTransferBtn.innerHTML;
+    previewBatchTransferBtn.innerHTML = '<span class="btn-icon">⏳</span> 预览中...';
+    previewBatchTransferBtn.disabled = true;
+    
+    try {
+      let endpoint;
+      switch (currentRecipientMode) {
+        case 'single':
+          endpoint = '/api/transfer/batch-prepare';
+          break;
+        case 'multiple':
+          endpoint = '/api/transfer/batch-prepare-multiple';
+          break;
+        case 'internal':
+          endpoint = '/api/transfer/batch-prepare-internal';
+          break;
+      }
+      
+      const r = await authFetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestData)
+      });
+      
+      if (!r.ok) {
+        const error = await r.json();
+        throw new Error(error.detail || '预览失败');
+      }
+      
+      const result = await r.json();
+      
+      // 显示预览信息
+      displayBatchPreview(result);
+      
+      if (batchTransferPreview) batchTransferPreview.style.display = 'block';
+      const executeBtn = $('#executeBatchTransferBtn');
+      if (executeBtn) executeBtn.style.display = 'inline-flex';
+      
+      if (result.insufficient_wallets > 0) {
+        alertMsg(`注意：有 ${result.insufficient_wallets} 个钱包余额不足，将跳过这些钱包`);
+      }
+      
+    } catch (e) {
+      alertMsg(e.message);
+    } finally {
+      previewBatchTransferBtn.innerHTML = originalText;
+      previewBatchTransferBtn.disabled = false;
     }
-    
-    requestData = {
-      from_wallet_ids: Array.from(selectedBatchWallets),
-      recipients: recipients,
-      memo: batchTransferForm.querySelector('input[name="memo"]').value
-    };
-    
-  } else if (currentRecipientMode === 'internal') {
-    // 内部分发模式
-    if (selectedBatchWallets.size === 0 || selectedInternalWallets.size === 0) {
-      alertMsg('请选择发送钱包和接收钱包');
-      return;
-    }
-    
-    const amountPerWallet = batchTransferForm.querySelector('input[name="amount_per_wallet"]').value;
-    if (!amountPerWallet) {
-      alertMsg('请设置转账金额');
-      return;
-    }
-    
-    requestData = {
-      from_wallet_ids: Array.from(selectedBatchWallets),
-      to_wallet_ids: Array.from(selectedInternalWallets),
-      amount_per_wallet: parseFloat(amountPerWallet),
-      memo: batchTransferForm.querySelector('input[name="memo"]').value
-    };
-  }
-  
-  const btn = $('#previewBatchTransferBtn');
-  const originalText = btn.innerHTML;
-  btn.innerHTML = '<span class="btn-icon">⏳</span> 预览中...';
-  btn.disabled = true;
-  
-  try {
-    let endpoint;
-    switch (currentRecipientMode) {
-      case 'single':
-        endpoint = '/api/transfer/batch-prepare';
-        break;
-      case 'multiple':
-        endpoint = '/api/transfer/batch-prepare-multiple';
-        break;
-      case 'internal':
-        endpoint = '/api/transfer/batch-prepare-internal';
-        break;
-    }
-    
-    const r = await authFetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestData)
-    });
-    
-    if (!r.ok) {
-      const error = await r.json();
-      throw new Error(error.detail || '预览失败');
-    }
-    
-    const result = await r.json();
-    
-    // 显示预览摘要
-    displayBatchPreview(result);
-    
-    batchTransferPreview.style.display = 'block';
-    $('#executeBatchTransferBtn').style.display = 'inline-flex';
-    
-    if (result.insufficient_wallets > 0) {
-      alertMsg(`注意：有 ${result.insufficient_wallets} 个钱包余额不足，将跳过这些钱包`);
-    }
-    
-  } catch (e) {
-    alertMsg(e.message);
-  } finally {
-    btn.innerHTML = originalText;
-    btn.disabled = false;
-  }
-});
+  });
+}
 
 const displayBatchPreview = (result) => {
   // 根据模式显示不同的预览信息
+  const batchPreviewTo = $('#batchPreviewTo');
+  const batchPreviewWalletCount = $('#batchPreviewWalletCount');
+  const batchPreviewAmountPer = $('#batchPreviewAmountPer');
+  const batchPreviewTotalAmount = $('#batchPreviewTotalAmount');
+  const batchPreviewTotalFee = $('#batchPreviewTotalFee');
+  const batchPreviewGrandTotal = $('#batchPreviewGrandTotal');
+  const batchPreviewDetails = $('#batchPreviewDetails');
+  
   if (currentRecipientMode === 'single') {
-    $('#batchPreviewTo').textContent = `${result.to_address.slice(0, 8)}...${result.to_address.slice(-4)}`;
-    $('#batchPreviewWalletCount').textContent = `${result.sufficient_wallets}/${result.total_wallets} 个钱包`;
-    $('#batchPreviewAmountPer').textContent = `${result.amount_per_wallet.toFixed(6)} SOL`;
-    $('#batchPreviewTotalAmount').textContent = `${result.total_transfer_amount.toFixed(6)} SOL`;
-    $('#batchPreviewTotalFee').textContent = `${result.total_fees.toFixed(6)} SOL`;
-    $('#batchPreviewGrandTotal').textContent = `${result.total_required.toFixed(6)} SOL`;
+    if (batchPreviewTo) batchPreviewTo.textContent = `${result.to_address.slice(0, 8)}...${result.to_address.slice(-4)}`;
+    if (batchPreviewWalletCount) batchPreviewWalletCount.textContent = `${result.sufficient_wallets}/${result.total_wallets} 个钱包`;
+    if (batchPreviewAmountPer) batchPreviewAmountPer.textContent = `${result.amount_per_wallet.toFixed(6)} SOL`;
+    if (batchPreviewTotalAmount) batchPreviewTotalAmount.textContent = `${result.total_transfer_amount.toFixed(6)} SOL`;
+    if (batchPreviewTotalFee) batchPreviewTotalFee.textContent = `${result.total_fees.toFixed(6)} SOL`;
+    if (batchPreviewGrandTotal) batchPreviewGrandTotal.textContent = `${result.total_required.toFixed(6)} SOL`;
   } else if (currentRecipientMode === 'multiple') {
-    $('#batchPreviewTo').textContent = `${result.recipients.length} 个不同地址`;
-    $('#batchPreviewWalletCount').textContent = `${result.sufficient_wallets}/${result.total_wallets} 个钱包`;
-    $('#batchPreviewAmountPer').textContent = '各不相同';
-    $('#batchPreviewTotalAmount').textContent = `${result.total_transfer_amount.toFixed(6)} SOL`;
-    $('#batchPreviewTotalFee').textContent = `${result.total_fees.toFixed(6)} SOL`;
-    $('#batchPreviewGrandTotal').textContent = `${result.total_required.toFixed(6)} SOL`;
+    if (batchPreviewTo) batchPreviewTo.textContent = `${result.recipients.length} 个不同地址`;
+    if (batchPreviewWalletCount) batchPreviewWalletCount.textContent = `${result.sufficient_wallets}/${result.total_wallets} 个钱包`;
+    if (batchPreviewAmountPer) batchPreviewAmountPer.textContent = '各不相同';
+    if (batchPreviewTotalAmount) batchPreviewTotalAmount.textContent = `${result.total_transfer_amount.toFixed(6)} SOL`;
+    if (batchPreviewTotalFee) batchPreviewTotalFee.textContent = `${result.total_fees.toFixed(6)} SOL`;
+    if (batchPreviewGrandTotal) batchPreviewGrandTotal.textContent = `${result.total_required.toFixed(6)} SOL`;
   } else if (currentRecipientMode === 'internal') {
-    $('#batchPreviewTo').textContent = `${result.internal_wallets.length} 个内部钱包`;
-    $('#batchPreviewWalletCount').textContent = `${result.sufficient_wallets}/${result.total_wallets} 个钱包`;
-    $('#batchPreviewAmountPer').textContent = `${result.amount_per_wallet.toFixed(6)} SOL`;
-    $('#batchPreviewTotalAmount').textContent = `${result.total_transfer_amount.toFixed(6)} SOL`;
-    $('#batchPreviewTotalFee').textContent = `${result.total_fees.toFixed(6)} SOL`;
-    $('#batchPreviewGrandTotal').textContent = `${result.total_required.toFixed(6)} SOL`;
+    if (batchPreviewTo) batchPreviewTo.textContent = `${selectedInternalWallets.size} 个内部钱包`;
+    if (batchPreviewWalletCount) batchPreviewWalletCount.textContent = `${result.sufficient_wallets}/${result.total_wallets} 个钱包`;
+    if (batchPreviewAmountPer) batchPreviewAmountPer.textContent = `${result.amount_per_wallet.toFixed(6)} SOL`;
+    if (batchPreviewTotalAmount) batchPreviewTotalAmount.textContent = `${result.total_transfer_amount.toFixed(6)} SOL`;
+    if (batchPreviewTotalFee) batchPreviewTotalFee.textContent = `${result.total_fees.toFixed(6)} SOL`;
+    if (batchPreviewGrandTotal) batchPreviewGrandTotal.textContent = `${result.total_required.toFixed(6)} SOL`;
   }
   
   // 显示详细信息
-  const detailsHtml = result.transfers.map(t => `
-    <div class="batch-detail-item ${!t.sufficient ? 'insufficient' : ''}">
-      <span>${t.wallet_name || '未命名'}</span>
-      <span>${t.current_balance.toFixed(4)} SOL</span>
-      <span>${t.sufficient ? '✅' : '❌'}</span>
-      <span>${t.sufficient ? '可转账' : '余额不足'}</span>
-    </div>
-  `).join('');
-  
-  $('#batchPreviewDetails').innerHTML = detailsHtml;
+  if (batchPreviewDetails) {
+    const detailsHtml = result.transfers.map(t => `
+      <div class="batch-detail-item ${!t.sufficient ? 'insufficient' : ''}">
+        <span>${t.wallet_name || '未命名'}</span>
+        <span>${t.current_balance.toFixed(4)} SOL</span>
+        <span>${t.sufficient ? '✅' : '❌'}</span>
+        <span>${t.sufficient ? '可转账' : '余额不足'}</span>
+      </div>
+    `).join('');
+    
+    batchPreviewDetails.innerHTML = detailsHtml;
+  }
 };
-
-// 确认转账按钮
-$('#executeTransferBtn')?.addEventListener('click', async () => {
-  // 这个功能现在由TransferController处理
-  if (window.transferController) {
-    await window.transferController.handleSingleTransfer();
-  } else {
-    alertMsg('转账功能正在初始化，请稍后再试');
-  }
-});
-
-$('#executeBatchTransferBtn')?.addEventListener('click', async () => {
-  // 这个功能现在由TransferController处理
-  if (window.transferController) {
-    await window.transferController.handleBatchTransfer();
-  } else {
-    alertMsg('转账功能正在初始化，请稍后再试');
-  }
-});
 
 /* ---------- 转账记录管理 ---------- */
 const loadTransferRecords = async () => {
+  const transferRecordsEl = $('#transferRecords');
+  if (!transferRecordsEl) return;
+  
   if (!JWT) {
-    $('#transferRecords').innerHTML = '<p class="muted">请先登录查看转账记录</p>';
+    transferRecordsEl.innerHTML = '<p class="muted">请先登录查看转账记录</p>';
     return;
   }
   
@@ -1377,12 +1505,13 @@ const loadTransferRecords = async () => {
     
   } catch (error) {
     console.error('加载转账记录失败:', error);
-    $('#transferRecords').innerHTML = '<p class="muted">加载转账记录失败</p>';
+    transferRecordsEl.innerHTML = '<p class="muted">加载转账记录失败</p>';
   }
 };
 
 const displayTransferRecords = (records) => {
   const recordsEl = $('#transferRecords');
+  if (!recordsEl) return;
   
   if (records.length === 0) {
     recordsEl.innerHTML = '<p class="muted">暂无转账记录</p>';
@@ -1500,257 +1629,280 @@ const displayTransferRecords = (records) => {
 
 /* ---------- 弹窗管理 ---------- */
 const showImportModal = () => {
-  importModal.hidden = false;
-  importTextarea.focus();
-};
-
-const hideImportModal = () => {
-  importModal.hidden = true;
-  importTextarea.value = '';
-};
-
-// 弹窗事件绑定
-$('#importBtn').onclick = showImportModal;
-importCancel.onclick = hideImportModal;
-modalClose.onclick = hideImportModal;
-
-// 点击背景关闭弹窗
-importModal.onclick = (e) => {
-  if (e.target === importModal) {
-    hideImportModal();
+  if (importModal) {
+    importModal.hidden = false;
+    if (importTextarea) importTextarea.focus();
   }
 };
 
+const hideImportModal = () => {
+  if (importModal) {
+    importModal.hidden = true;
+    if (importTextarea) importTextarea.value = '';
+  }
+};
+
+// 弹窗事件绑定
+const importBtn = $('#importBtn');
+if (importBtn) importBtn.onclick = showImportModal;
+if (importCancel) importCancel.onclick = hideImportModal;
+if (modalClose) modalClose.onclick = hideImportModal;
+
+// 点击背景关闭弹窗
+if (importModal) {
+  importModal.onclick = (e) => {
+    if (e.target === importModal) {
+      hideImportModal();
+    }
+  };
+}
+
 // ESC 键关闭弹窗
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !importModal.hidden) {
+  if (e.key === 'Escape' && importModal && !importModal.hidden) {
     hideImportModal();
   }
 });
 
 // 拖拽文件读取
-importTextarea.addEventListener('dragover', (e) => {
-  e.preventDefault();
-  importTextarea.style.borderColor = 'var(--accent-color)';
-  importTextarea.style.background = '#f0f8ff';
-});
+if (importTextarea) {
+  importTextarea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    importTextarea.style.borderColor = 'var(--accent-color)';
+    importTextarea.style.background = '#f0f8ff';
+  });
 
-importTextarea.addEventListener('dragleave', (e) => {
-  e.preventDefault();
-  importTextarea.style.borderColor = 'var(--border-color)';
-  importTextarea.style.background = '#fafafa';
-});
+  importTextarea.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    importTextarea.style.borderColor = 'var(--border-color)';
+    importTextarea.style.background = '#fafafa';
+  });
 
-importTextarea.addEventListener('drop', (e) => {
-  e.preventDefault();
-  importTextarea.style.borderColor = 'var(--border-color)';
-  importTextarea.style.background = '#fafafa';
-  
-  const file = e.dataTransfer.files[0];
-  if (!file) return;
-  
-  if (!file.name.endsWith('.json')) {
-    alertMsg('请选择 JSON 格式的文件');
-    return;
-  }
-  
-  const reader = new FileReader();
-  reader.onload = () => {
-    importTextarea.value = reader.result;
-  };
-  reader.onerror = () => {
-    alertMsg('文件读取失败');
-  };
-  reader.readAsText(file);
-});
+  importTextarea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    importTextarea.style.borderColor = 'var(--border-color)';
+    importTextarea.style.background = '#fafafa';
+    
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    
+    if (!file.name.endsWith('.json')) {
+      alertMsg('请选择 JSON 格式的文件');
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = () => {
+      importTextarea.value = reader.result;
+    };
+    reader.onerror = () => {
+      alertMsg('文件读取失败');
+    };
+    reader.readAsText(file);
+  });
+}
 
 // 导入确认
-importConfirm.onclick = async () => {
-  const text = importTextarea.value.trim();
-  if (!text) { 
-    alertMsg('请输入私钥内容或拖拽文件'); 
-    return; 
-  }
-
-  // 简单验证 JSON 格式
-  try {
-    JSON.parse(text);
-  } catch (e) {
-    alertMsg('无效的 JSON 格式');
-    return;
-  }
-
-  const blob = new Blob([text], { type: 'application/json' });
-  const formData = new FormData();
-  formData.append('file', blob, 'import.json');
-
-  const originalText = importConfirm.textContent;
-  importConfirm.textContent = '导入中...';
-  importConfirm.disabled = true;
-
-  try {
-    const r = await authFetch('/api/wallets/import', {
-      method: 'POST',
-      body: formData
-    });
-
-    if (!r.ok) {
-      const err = await r.json();
-      throw new Error(err.detail || '导入失败');
+if (importConfirm) {
+  importConfirm.onclick = async () => {
+    const text = importTextarea.value.trim();
+    if (!text) { 
+      alertMsg('请输入私钥内容或拖拽文件'); 
+      return; 
     }
 
-    const result = await r.json();
-    
-    hideImportModal();
-    
-    if (result.failed > 0) {
-      alert(`导入完成！\n✅ 成功: ${result.imported} 个\n❌ 失败: ${result.failed} 个\n\n请检查文件格式是否正确。`);
-    } else {
-      alert(`🎉 导入成功！共导入 ${result.imported} 个钱包。`);
+    // 简单验证 JSON 格式
+    try {
+      JSON.parse(text);
+    } catch (e) {
+      alertMsg('无效的 JSON 格式');
+      return;
     }
-    
-    loadWallets();
-    
-  } catch (e) {
-    alertMsg('导入失败: ' + e.message);
-  } finally {
-    importConfirm.textContent = originalText;
-    importConfirm.disabled = false;
-  }
-};
+
+    const blob = new Blob([text], { type: 'application/json' });
+    const formData = new FormData();
+    formData.append('file', blob, 'import.json');
+
+    const originalText = importConfirm.textContent;
+    importConfirm.textContent = '导入中...';
+    importConfirm.disabled = true;
+
+    try {
+      const r = await authFetch('/api/wallets/import', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!r.ok) {
+        const err = await r.json();
+        throw new Error(err.detail || '导入失败');
+      }
+
+      const result = await r.json();
+      
+      hideImportModal();
+      
+      if (result.failed > 0) {
+        alert(`导入完成！\n✅ 成功: ${result.imported} 个\n❌ 失败: ${result.failed} 个\n\n请检查文件格式是否正确。`);
+      } else {
+        alert(`🎉 导入成功！共导入 ${result.imported} 个钱包。`);
+      }
+      
+      loadWallets();
+      
+    } catch (e) {
+      alertMsg('导入失败: ' + e.message);
+    } finally {
+      importConfirm.textContent = originalText;
+      importConfirm.disabled = false;
+    }
+  };
+}
 
 /* ---------- 钱包操作 ---------- */
 
 // 导出钱包
-$('#exportBtn').onclick = async () => {
-  if (selectedWallets.size === 0) {
-    alertMsg('请选择要导出的钱包');
-    return;
-  }
-  
-  const btn = $('#exportBtn');
-  const originalText = btn.innerHTML;
-  btn.innerHTML = '<span class="btn-icon">⏳</span> 导出中...';
-  btn.disabled = true;
-  
-  try {
-    const r = await authFetch('/api/wallets/export', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Array.from(selectedWallets))
-    });
+const exportBtn = $('#exportBtn');
+if (exportBtn) {
+  exportBtn.onclick = async () => {
+    if (selectedWallets.size === 0) {
+      alertMsg('请选择要导出的钱包');
+      return;
+    }
     
-    if (!r.ok) throw new Error('导出失败');
+    const originalText = exportBtn.innerHTML;
+    exportBtn.innerHTML = '<span class="btn-icon">⏳</span> 导出中...';
+    exportBtn.disabled = true;
     
-    const blob = await r.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `wallets_export_${selectedWallets.size}_${new Date().getTime()}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-  } catch (e) {
-    alertMsg('导出失败: ' + e.message);
-  } finally {
-    btn.innerHTML = originalText;
-    btn.disabled = selectedWallets.size === 0;
-  }
-};
+    try {
+      const r = await authFetch('/api/wallets/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Array.from(selectedWallets))
+      });
+      
+      if (!r.ok) throw new Error('导出失败');
+      
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `wallets_export_${selectedWallets.size}_${new Date().getTime()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+    } catch (e) {
+      alertMsg('导出失败: ' + e.message);
+    } finally {
+      exportBtn.innerHTML = originalText;
+      exportBtn.disabled = selectedWallets.size === 0;
+    }
+  };
+}
 
 // 查询余额
-$('#balanceBtn').onclick = async () => {
-  if (selectedWallets.size === 0) {
-    alertMsg('请选择要查询余额的钱包');
-    return;
-  }
-  
-  const btn = $('#balanceBtn');
-  const originalText = btn.innerHTML;
-  btn.innerHTML = '<span class="btn-icon">⏳</span> 查询中...';
-  btn.disabled = true;
-  totalBalanceBox.classList.add('loading');
-  
-  try {
-    const r = await authFetch('/api/wallets/balances', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Array.from(selectedWallets))
-    });
+const balanceBtn = $('#balanceBtn');
+if (balanceBtn) {
+  balanceBtn.onclick = async () => {
+    if (selectedWallets.size === 0) {
+      alertMsg('请选择要查询余额的钱包');
+      return;
+    }
     
-    if (!r.ok) throw new Error('查询失败');
+    const originalText = balanceBtn.innerHTML;
+    balanceBtn.innerHTML = '<span class="btn-icon">⏳</span> 查询中...';
+    balanceBtn.disabled = true;
+    if (totalBalanceBox) totalBalanceBox.classList.add('loading');
     
-    const result = await r.json();
-    
-    // 更新总余额显示
-    $('#totalBalance').textContent = result.total.toFixed(4);
-    $('#walletCount').textContent = result.count;
-    $('#lastUpdate').textContent = new Date().toLocaleTimeString();
-    totalBalanceBox.style.display = 'block';
-    totalBalanceBox.classList.remove('loading');
-    
-    // 重新加载钱包列表以显示更新的余额
-    await loadWallets();
-    
-    // 恢复选中状态
-    selectedWallets.forEach(id => {
-      const checkbox = $(`.wallet-select[value="${id}"]`);
-      if (checkbox) checkbox.checked = true;
-    });
-    
-  } catch (e) {
-    alertMsg('查询余额失败: ' + e.message);
-    totalBalanceBox.classList.remove('loading');
-  } finally {
-    btn.innerHTML = originalText;
-    btn.disabled = selectedWallets.size === 0;
-  }
-};
+    try {
+      const r = await authFetch('/api/wallets/balances', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Array.from(selectedWallets))
+      });
+      
+      if (!r.ok) throw new Error('查询失败');
+      
+      const result = await r.json();
+      
+      // 更新总余额显示
+      const totalBalance = $('#totalBalance');
+      const walletCount = $('#walletCount');
+      const lastUpdate = $('#lastUpdate');
+      
+      if (totalBalance) totalBalance.textContent = result.total.toFixed(4);
+      if (walletCount) walletCount.textContent = result.count;
+      if (lastUpdate) lastUpdate.textContent = new Date().toLocaleTimeString();
+      if (totalBalanceBox) {
+        totalBalanceBox.style.display = 'block';
+        totalBalanceBox.classList.remove('loading');
+      }
+      
+      // 重新加载钱包列表以显示更新的余额
+      await loadWallets();
+      
+      // 恢复选中状态
+      selectedWallets.forEach(id => {
+        const checkbox = $(`.wallet-select[value="${id}"]`);
+        if (checkbox) checkbox.checked = true;
+      });
+      
+    } catch (e) {
+      alertMsg('查询余额失败: ' + e.message);
+      if (totalBalanceBox) totalBalanceBox.classList.remove('loading');
+    } finally {
+      balanceBtn.innerHTML = originalText;
+      balanceBtn.disabled = selectedWallets.size === 0;
+    }
+  };
+}
 
 // 删除钱包
-$('#deleteBtn').onclick = async () => {
-  if (selectedWallets.size === 0) {
-    alertMsg('请选择要删除的钱包');
-    return;
-  }
-  
-  const confirmed = confirm(
-    `⚠️ 确定要删除 ${selectedWallets.size} 个钱包吗？\n\n此操作不可恢复，请确保已备份重要钱包！`
-  );
-  
-  if (!confirmed) return;
-  
-  const btn = $('#deleteBtn');
-  const originalText = btn.innerHTML;
-  btn.innerHTML = '<span class="btn-icon">⏳</span> 删除中...';
-  btn.disabled = true;
-  
-  try {
-    const r = await authFetch('/api/wallets', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Array.from(selectedWallets))
-    });
+const deleteBtn = $('#deleteBtn');
+if (deleteBtn) {
+  deleteBtn.onclick = async () => {
+    if (selectedWallets.size === 0) {
+      alertMsg('请选择要删除的钱包');
+      return;
+    }
     
-    if (!r.ok) throw new Error('删除失败');
+    const confirmed = confirm(
+      `⚠️ 确定要删除 ${selectedWallets.size} 个钱包吗？\n\n此操作不可恢复，请确保已备份重要钱包！`
+    );
     
-    const result = await r.json();
-    alert(`🗑️ 成功删除 ${result.deleted} 个钱包`);
+    if (!confirmed) return;
     
-    // 清空选择并重新加载
-    selectedWallets.clear();
-    totalBalanceBox.style.display = 'none';
-    loadWallets();
+    const originalText = deleteBtn.innerHTML;
+    deleteBtn.innerHTML = '<span class="btn-icon">⏳</span> 删除中...';
+    deleteBtn.disabled = true;
     
-  } catch (e) {
-    alertMsg('删除失败: ' + e.message);
-  } finally {
-    btn.innerHTML = originalText;
-    btn.disabled = true; // 删除后禁用，等待重新选择
-  }
-};
+    try {
+      const r = await authFetch('/api/wallets', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Array.from(selectedWallets))
+      });
+      
+      if (!r.ok) throw new Error('删除失败');
+      
+      const result = await r.json();
+      alert(`🗑️ 成功删除 ${result.deleted} 个钱包`);
+      
+      // 清空选择并重新加载
+      selectedWallets.clear();
+      if (totalBalanceBox) totalBalanceBox.style.display = 'none';
+      loadWallets();
+      
+    } catch (e) {
+      alertMsg('删除失败: ' + e.message);
+    } finally {
+      deleteBtn.innerHTML = originalText;
+      deleteBtn.disabled = true; // 删除后禁用，等待重新选择
+    }
+  };
+}
 
 /* ---------- 下载功能 ---------- */
 window.downloadJob = async (jobId) => {
@@ -1803,14 +1955,6 @@ document.addEventListener('DOMContentLoaded', () => {
   } else {
     console.log('⏳ 转账控制器等待transfer.js加载...');
   }
-  
-  // 添加一些用户体验优化
-  document.addEventListener('click', (e) => {
-    // 如果点击的是链接但没有有效的onclick，阻止默认行为
-    if (e.target.tagName === 'A' && e.target.getAttribute('href') === '#') {
-      e.preventDefault();
-    }
-  });
   
   console.log('🎉 Solana 工具站初始化完成');
 });
