@@ -394,7 +394,6 @@
   background: white;
   margin-bottom: 16px;
   width: 100%;
-  max-width: 800px; /* 增加最大宽度 */
 }
 
 /* 在内部分发模式下以网格显示钱包，避免列表过窄 */
