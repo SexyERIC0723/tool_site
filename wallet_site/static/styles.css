@@ -183,6 +183,26 @@
     gap: 20px;
     margin-bottom: 24px;
   }
+
+/* 批量转账表单特殊处理 */
+#batchTransferForm .form-grid {
+    display: block; /* 改为块级布局 */
+  }
+  
+  /* 内部模式完全宽度 */
+  #batchTransferForm .recipient-config.internal-mode {
+    width: 100%;
+  }
+  
+  #batchTransferForm .recipient-config.internal-mode .form-group {
+    margin-bottom: 16px;
+  }
+  
+  /* 内部钱包网格不受form-grid影响 */
+  #batchTransferForm .internal-wallet-grid {
+    margin: 16px 0;
+    width: 100%;
+  }
   
   .form-group {
     display: flex;
@@ -384,7 +404,13 @@
   }
 
   /* 内部钱包选择列表 - 统一样式 */
-  .batch-wallet-list,
+  .batch-wallet-grid,
+  .internal-wallet-grid,
+  .internal-wallet-list {
+    width: 100%;
+  }
+
+  /* 传统列表样式（保留给弹窗使用） */
   .internal-wallet-list {
     max-height: 350px;
     overflow-y: auto;
@@ -392,12 +418,12 @@
     border-radius: 8px;
     background: white;
     margin-bottom: 16px;
-    width: 100%;
   }
   
   /* =========================
-     内部钱包选择优化样式
+     钱包网格选择样式 - 统一设计
   ========================= */
+  .batch-wallet-grid,
   .internal-wallet-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
@@ -412,6 +438,7 @@
     background: #f8f9fa;
   }
 
+  .batch-wallet-grid .batch-wallet-item,
   .internal-wallet-grid .internal-wallet-item {
     display: flex;
     align-items: center;
@@ -425,24 +452,28 @@
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
   }
 
+  .batch-wallet-grid .batch-wallet-item:hover,
   .internal-wallet-grid .internal-wallet-item:hover {
     border-color: var(--accent-color);
     box-shadow: 0 4px 12px rgba(33, 150, 243, 0.15);
     transform: translateY(-2px);
   }
 
+  .batch-wallet-grid .batch-wallet-item.selected,
   .internal-wallet-grid .internal-wallet-item.selected {
     background: linear-gradient(to right, rgba(33, 150, 243, 0.05), rgba(33, 150, 243, 0.02));
     border-color: var(--accent-color);
     box-shadow: 0 4px 16px rgba(33, 150, 243, 0.2);
   }
 
+  .batch-wallet-grid .batch-wallet-select,
   .internal-wallet-grid .internal-wallet-select {
     margin-right: 16px;
     transform: scale(1.2);
     cursor: pointer;
   }
 
+  .batch-wallet-grid .wallet-avatar,
   .internal-wallet-grid .wallet-avatar {
     width: 48px;
     height: 48px;
@@ -459,6 +490,7 @@
     box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
   }
 
+  .batch-wallet-grid .wallet-info,
   .internal-wallet-grid .wallet-info {
     flex: 1;
     min-width: 0;
@@ -467,6 +499,7 @@
     gap: 4px;
   }
 
+  .batch-wallet-grid .wallet-info .wallet-name,
   .internal-wallet-grid .wallet-info .wallet-name {
     font-weight: 600;
     color: var(--text-primary);
@@ -474,6 +507,7 @@
     margin-bottom: 2px;
   }
 
+  .batch-wallet-grid .wallet-info .wallet-address,
   .internal-wallet-grid .wallet-info .wallet-address {
     font-family: 'Courier New', monospace;
     font-size: 13px;
@@ -483,13 +517,15 @@
     gap: 8px;
   }
 
+  .batch-wallet-grid .wallet-info .wallet-address .address-text,
   .internal-wallet-grid .wallet-info .wallet-address .address-text {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 220px;
+    max-width: 300px;
   }
 
+  .batch-wallet-grid .wallet-info .wallet-address .copy-btn,
   .internal-wallet-grid .wallet-info .wallet-address .copy-btn {
     background: none;
     border: none;
@@ -501,10 +537,12 @@
     transition: opacity 0.2s;
   }
 
+  .batch-wallet-grid .batch-wallet-item:hover .copy-btn,
   .internal-wallet-grid .internal-wallet-item:hover .copy-btn {
     opacity: 1;
   }
 
+  .batch-wallet-grid .wallet-balance,
   .internal-wallet-grid .wallet-balance {
     font-family: 'Courier New', monospace;
     font-weight: 700;
@@ -517,6 +555,7 @@
     align-items: flex-end;
   }
 
+  .batch-wallet-grid .wallet-balance .balance-label,
   .internal-wallet-grid .wallet-balance .balance-label {
     font-size: 10px;
     color: var(--text-secondary);
@@ -525,6 +564,7 @@
   }
 
   /* 选中统计栏 */
+  .batch-wallet-selection-info,
   .internal-wallet-selection-info {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
@@ -537,16 +577,19 @@
     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
   }
 
+  .batch-wallet-selection-info .selection-count,
   .internal-wallet-selection-info .selection-count {
     font-size: 16px;
     font-weight: 500;
   }
 
+  .batch-wallet-selection-info .selection-actions,
   .internal-wallet-selection-info .selection-actions {
     display: flex;
     gap: 12px;
   }
 
+  .batch-wallet-selection-info .selection-btn,
   .internal-wallet-selection-info .selection-btn {
     background: rgba(255, 255, 255, 0.2);
     border: 1px solid rgba(255, 255, 255, 0.3);
@@ -558,16 +601,18 @@
     transition: var(--transition);
   }
 
+  .batch-wallet-selection-info .selection-btn:hover,
   .internal-wallet-selection-info .selection-btn:hover {
     background: rgba(255, 255, 255, 0.3);
   }
 
-  /* 确保在表单网格中占据整行，匹配转账钱包列表宽度 */
-  .recipient-config.internal-mode .internal-wallet-grid {
+  /* 确保在表单网格中占据整行 */
+  .recipient-config.internal-mode .internal-wallet-grid,
+  .wallet-selection .batch-wallet-grid {
     grid-column: 1 / -1;
   }
 
-  .batch-wallet-list .batch-wallet-item,
+  /* 传统列表项样式（用于弹窗） */
   .internal-wallet-list .internal-wallet-item {
     display: flex;
     align-items: center;
@@ -575,32 +620,27 @@
     border-bottom: 1px solid #f0f0f0;
     transition: var(--transition);
     cursor: pointer;
-    min-height: 72px; /* 确保足够的高度 */
+    min-height: 72px;
   }
 
-  .batch-wallet-list .batch-wallet-item:last-child,
   .internal-wallet-list .internal-wallet-item:last-child {
     border-bottom: none;
   }
 
-  .batch-wallet-list .batch-wallet-item:hover,
   .internal-wallet-list .internal-wallet-item:hover {
     background: #f8f9fa;
   }
 
-  .batch-wallet-list .batch-wallet-item.selected,
   .internal-wallet-list .internal-wallet-item.selected {
     background: rgba(33, 150, 243, 0.05);
     border-color: var(--accent-color);
   }
 
-  .batch-wallet-list .batch-wallet-select,
   .internal-wallet-list .internal-wallet-select {
     margin-right: 12px;
     transform: scale(1.1);
   }
 
-  .batch-wallet-list .wallet-avatar,
   .internal-wallet-list .wallet-avatar {
     width: 40px;
     height: 40px;
@@ -616,31 +656,23 @@
     flex-shrink: 0;
   }
 
-  .batch-wallet-list .wallet-info,
   .internal-wallet-list .wallet-details {
     flex: 1;
     min-width: 0;
   }
 
-  .batch-wallet-list .wallet-info .wallet-name,
   .internal-wallet-list .wallet-details .wallet-name {
     font-weight: 500;
     color: var(--text-primary);
     margin-bottom: 2px;
   }
 
-  .batch-wallet-list .wallet-info .wallet-address,
   .internal-wallet-list .wallet-details .wallet-address-short {
     font-family: monospace;
     font-size: 12px;
     color: var(--text-secondary);
   }
 
-  .batch-wallet-list .wallet-info .wallet-address {
-    word-break: break-all;
-  }
-
-  .batch-wallet-list .wallet-balance,
   .internal-wallet-list .wallet-balance {
     font-family: monospace;
     font-weight: 600;
@@ -1516,6 +1548,7 @@
      响应式设计
   ========================= */
   @media (max-width: 1200px) {
+    .batch-wallet-grid,
     .internal-wallet-grid {
       grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
     }
@@ -1608,17 +1641,20 @@
       flex: none;
     }
 
+    .batch-wallet-grid,
     .internal-wallet-grid {
       grid-template-columns: 1fr;
       padding: 12px;
       gap: 12px;
     }
     
+    .batch-wallet-grid .batch-wallet-item,
     .internal-wallet-grid .internal-wallet-item {
       padding: 12px;
       min-height: 70px;
     }
     
+    .batch-wallet-grid .wallet-avatar,
     .internal-wallet-grid .wallet-avatar {
       width: 40px;
       height: 40px;
@@ -1626,14 +1662,17 @@
       margin-right: 12px;
     }
     
+    .batch-wallet-grid .wallet-info .wallet-name,
     .internal-wallet-grid .wallet-info .wallet-name {
       font-size: 14px;
     }
     
+    .batch-wallet-grid .wallet-info .wallet-address,
     .internal-wallet-grid .wallet-info .wallet-address {
       font-size: 12px;
     }
     
+    .batch-wallet-grid .wallet-balance,
     .internal-wallet-grid .wallet-balance {
       font-size: 14px;
       margin-left: 8px;
@@ -1660,19 +1699,16 @@
     }
 
     /* 移动端内部钱包选择优化 */
-    .batch-wallet-list .batch-wallet-item,
     .internal-wallet-list .internal-wallet-item {
       flex-direction: row;
       align-items: flex-start;
       padding: 16px 12px;
     }
 
-    .batch-wallet-list .wallet-info,
     .internal-wallet-list .wallet-details {
       margin-right: 8px;
     }
 
-    .batch-wallet-list .wallet-balance,
     .internal-wallet-list .wallet-balance {
       margin-left: 0;
       margin-top: 4px;

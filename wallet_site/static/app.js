@@ -57,7 +57,7 @@ const batchToAddressInput = $('#batchToAddressInput');
 const feeDisplay = $('#feeDisplay');
 const transferPreview = $('#transferPreview');
 const batchTransferPreview = $('#batchTransferPreview');
-const batchWalletList = $('#batchWalletList');
+const batchWalletGrid = $('#batchWalletGrid'); // 使用网格布局
 
 // 新增元素
 const internalTransferBtn = $('#internalTransferBtn');
@@ -1163,8 +1163,8 @@ const initTransferPage = async () => {
   // 加载用户钱包到下拉菜单
   await loadUserWalletsForTransfer();
   
-  // 加载批量转账钱包列表
-  loadBatchWalletList();
+  // 加载批量转账钱包列表 - 使用网格格式
+  loadBatchWalletGrid();
   
   // 加载转账记录
   await loadTransferRecords();
@@ -1232,40 +1232,188 @@ const loadUserWalletsForTransfer = async () => {
   }
 };
 
-// 加载批量转账钱包列表
-const loadBatchWalletList = () => {
-  if (!batchWalletList) return;
+// 修复后的批量转账钱包网格加载函数 - 关键修复
+const loadBatchWalletGrid = () => {
+  console.log('🔄 开始加载批量转账钱包网格...');
   
-  if (!userWallets.length) {
-    batchWalletList.innerHTML = '<p class="muted">暂无钱包</p>';
+  if (!batchWalletGrid) {
+    console.error('❌ batchWalletGrid 元素未找到');
     return;
   }
   
-  batchWalletList.innerHTML = userWallets.map(w => `
-    <div class="batch-wallet-item">
-      <input type="checkbox" class="batch-wallet-select" value="${w.id}" data-address="${w.public_key}">
-      <div class="wallet-avatar">
-        ${w.name ? w.name.charAt(0).toUpperCase() : '#'}
-      </div>
-      <div class="wallet-info">
-        <div class="wallet-name">${w.name || `钱包 #${w.id}`}</div>
-        <div class="wallet-address">${w.public_key}</div>
-      </div>
-      <div class="wallet-balance">${w.balance ? w.balance.toFixed(4) : '0.0000'} SOL</div>
-    </div>
-  `).join('');
+  if (!userWallets.length) {
+    console.log('⚠️ 无钱包数据，显示提示信息');
+    batchWalletGrid.innerHTML = '<p class="muted">暂无钱包</p>';
+    return;
+  }
   
-  // 绑定批量选择事件
-  $$('.batch-wallet-select').forEach(cb => {
-    cb.onchange = updateSelectedBatchWallets;
+  console.log('✅ 开始渲染钱包网格...');
+  
+  try {
+    // 使用与内部钱包网格相同的格式，关键修复：添加 data-wallet-id 属性
+    batchWalletGrid.innerHTML = userWallets.map(wallet => {
+      // 生成渐变色头像背景
+      const colors = [
+        'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+        'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+        'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+        'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
+      ];
+      const colorIndex = wallet.id % colors.length;
+      
+      return `
+        <div class="batch-wallet-item" data-address="${wallet.public_key}" data-wallet-id="${wallet.id}">
+          <input type="checkbox" class="batch-wallet-select" value="${wallet.id}" data-address="${wallet.public_key}" />
+          <div class="wallet-avatar" style="background: ${colors[colorIndex]};">
+            ${wallet.name ? wallet.name.charAt(0).toUpperCase() : wallet.id}
+          </div>
+          <div class="wallet-info">
+            <div class="wallet-name">${wallet.name || `钱包 #${wallet.id}`}</div>
+            <div class="wallet-address">
+              <span class="address-text" title="${wallet.public_key}">${wallet.public_key}</span>
+              <button class="copy-btn" onclick="copyAddress('${wallet.public_key}', this)" title="复制地址">📋</button>
+            </div>
+          </div>
+          <div class="wallet-balance">
+            <span class="balance-label">余额</span>
+            ${wallet.balance ? wallet.balance.toFixed(4) : '0.0000'} SOL
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+    console.log('HTML已设置到DOM');
+    
+    // 分离事件绑定到独立函数 - 关键修复
+    bindBatchWalletEvents();
+    
+    console.log('🎉 批量转账钱包网格加载完成！');
+    
+  } catch (error) {
+    console.error('Error in loadBatchWalletGrid:', error);
+  }
+};
+
+// 分离的事件绑定函数 - 关键修复
+const bindBatchWalletEvents = () => {
+  console.log('=== 绑定批量钱包事件 ===');
+  
+  const items = batchWalletGrid.querySelectorAll('.batch-wallet-item');
+  console.log('找到的钱包项数量:', items.length);
+  
+  items.forEach((item, index) => {
+    const checkbox = item.querySelector('.batch-wallet-select');
+    const walletId = parseInt(checkbox.value);
+    
+    // 点击整个项目切换选择状态
+    item.addEventListener('click', (e) => {
+      if (e.target === checkbox || e.target.classList.contains('copy-btn')) return;
+      
+      checkbox.checked = !checkbox.checked;
+      updateBatchWalletSelection(walletId, checkbox.checked);
+    });
+    
+    // 复选框变化事件
+    checkbox.addEventListener('change', (e) => {
+      updateBatchWalletSelection(walletId, e.target.checked);
+    });
+    
+    // 恢复之前的选择状态
+    if (selectedBatchWallets.has(walletId)) {
+      checkbox.checked = true;
+      item.classList.add('selected');
+    }
+  });
+  
+  // 更新选择信息
+  updateBatchSelectionInfo();
+  console.log('事件绑定完成');
+};
+
+// 修复后的更新批量钱包选择状态函数 - 关键修复
+const updateBatchWalletSelection = (walletId, isSelected) => {
+  // 使用 data-wallet-id 属性查找元素，而不是通过 checkbox - 关键修复
+  const targetItem = batchWalletGrid.querySelector(`[data-wallet-id="${walletId}"]`);
+  
+  if (isSelected) {
+    selectedBatchWallets.add(walletId);
+    if (targetItem) targetItem.classList.add('selected');
+  } else {
+    selectedBatchWallets.delete(walletId);
+    if (targetItem) targetItem.classList.remove('selected');
+  }
+  
+  // 更新选择信息
+  updateBatchSelectionInfo();
+};
+
+// 更新批量选择信息
+const updateBatchSelectionInfo = () => {
+  // 检查是否已存在选择信息栏
+  let selectionInfo = document.querySelector('.batch-wallet-selection-info');
+  const container = document.querySelector('.wallet-selection');
+  
+  if (!container) return;
+  
+  if (selectedBatchWallets.size > 0) {
+    if (!selectionInfo) {
+      selectionInfo = document.createElement('div');
+      selectionInfo.className = 'batch-wallet-selection-info';
+      container.insertBefore(selectionInfo, batchWalletGrid);
+    }
+    
+    selectionInfo.innerHTML = `
+      <div class="selection-count">
+        已选择 <strong>${selectedBatchWallets.size}</strong> 个钱包进行转账
+      </div>
+      <div class="selection-actions">
+        <button class="selection-btn" onclick="selectAllBatchWallets()">全选</button>
+        <button class="selection-btn" onclick="clearBatchWalletSelection()">清除</button>
+      </div>
+    `;
+  } else if (selectionInfo) {
+    selectionInfo.remove();
+  }
+};
+
+// 全选批量钱包
+window.selectAllBatchWallets = () => {
+  if (!batchWalletGrid) return;
+  
+  batchWalletGrid.querySelectorAll('.batch-wallet-item').forEach(item => {
+    const checkbox = item.querySelector('.batch-wallet-select');
+    const walletId = parseInt(checkbox.value);
+    
+    if (!checkbox.checked) {
+      checkbox.checked = true;
+      updateBatchWalletSelection(walletId, true);
+    }
   });
 };
 
+// 清除批量钱包选择
+window.clearBatchWalletSelection = () => {
+  if (!batchWalletGrid) return;
+  
+  batchWalletGrid.querySelectorAll('.batch-wallet-item').forEach(item => {
+    const checkbox = item.querySelector('.batch-wallet-select');
+    const walletId = parseInt(checkbox.value);
+    
+    if (checkbox.checked) {
+      checkbox.checked = false;
+      updateBatchWalletSelection(walletId, false);
+    }
+  });
+};
+
+// 保留原来的函数，用于兼容性 - 修复后版本
 const updateSelectedBatchWallets = () => {
   selectedBatchWallets.clear();
   $$('.batch-wallet-select:checked').forEach(cb => {
     selectedBatchWallets.add(parseInt(cb.value));
   });
+  updateBatchSelectionInfo();
 };
 
 // 地址验证
@@ -2030,6 +2178,7 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('  - loginBtn:', !!loginBtn);
   console.log('  - pages:', Object.keys(pages).filter(key => pages[key]).length + '/' + Object.keys(pages).length);
   console.log('  - navLinks:', navLinks.length);
+  console.log('  - batchWalletGrid:', !!batchWalletGrid);
   
   // 渲染登录状态
   renderLogin();
