@@ -866,20 +866,38 @@ const loadInternalWalletGrid = () => {
     return;
   }
   
-  // 优化后的HTML结构，显示完整地址
-  internalWalletGrid.innerHTML = userWallets.map(wallet => `
-    <div class="internal-wallet-item" data-address="${wallet.public_key}">
-      <input type="checkbox" class="internal-wallet-select" value="${wallet.public_key}" />
-      <div class="wallet-avatar">
-        ${wallet.name ? wallet.name.charAt(0).toUpperCase() : '#'}
+  // 优化后的HTML结构，更美观的布局
+  internalWalletGrid.innerHTML = userWallets.map(wallet => {
+    // 生成渐变色头像背景
+    const colors = [
+      'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+      'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+      'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+      'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
+    ];
+    const colorIndex = wallet.id % colors.length;
+    
+    return `
+      <div class="internal-wallet-item" data-address="${wallet.public_key}">
+        <input type="checkbox" class="internal-wallet-select" value="${wallet.public_key}" />
+        <div class="wallet-avatar" style="background: ${colors[colorIndex]};">
+          ${wallet.name ? wallet.name.charAt(0).toUpperCase() : wallet.id}
+        </div>
+        <div class="wallet-info">
+          <div class="wallet-name">${wallet.name || `钱包 #${wallet.id}`}</div>
+          <div class="wallet-address">
+            <span class="address-text" title="${wallet.public_key}">${wallet.public_key}</span>
+            <button class="copy-btn" onclick="copyAddress('${wallet.public_key}', this)" title="复制地址">📋</button>
+          </div>
+        </div>
+        <div class="wallet-balance">
+          <span class="balance-label">余额</span>
+          ${wallet.balance ? wallet.balance.toFixed(4) : '0.0000'} SOL
+        </div>
       </div>
-      <div class="wallet-details">
-        <div class="wallet-name">${wallet.name || `钱包 #${wallet.id}`}</div>
-        <div class="wallet-address-full">${wallet.public_key}</div>
-      </div>
-      <div class="wallet-balance">${wallet.balance ? wallet.balance.toFixed(4) : '0.0000'} SOL</div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
   
   // 绑定选择事件
   internalWalletGrid.querySelectorAll('.internal-wallet-item').forEach(item => {
@@ -888,8 +906,8 @@ const loadInternalWalletGrid = () => {
     
     // 点击整个项目切换选择状态
     item.addEventListener('click', (e) => {
-      // 如果点击的是复选框本身，让其正常处理
-      if (e.target === checkbox) return;
+      // 如果点击的是复选框或复制按钮，让其正常处理
+      if (e.target === checkbox || e.target.classList.contains('copy-btn')) return;
       
       // 切换复选框状态
       checkbox.checked = !checkbox.checked;
@@ -909,8 +927,84 @@ const loadInternalWalletGrid = () => {
       item.classList.add('selected');
     }
   });
+  
+  // 更新选择信息
+  updateInternalSelectionInfo();
 };
 
+// 添加更新选择信息的函数
+const updateInternalSelectionInfo = () => {
+  // 检查是否已存在选择信息栏
+  let selectionInfo = document.querySelector('.internal-wallet-selection-info');
+  const container = document.querySelector('.recipient-config.internal-mode');
+  
+  if (!container) return;
+  
+  if (selectedInternalWallets.size > 0) {
+    if (!selectionInfo) {
+      selectionInfo = document.createElement('div');
+      selectionInfo.className = 'internal-wallet-selection-info';
+      container.insertBefore(selectionInfo, internalWalletGrid);
+    }
+    
+    selectionInfo.innerHTML = `
+      <div class="selection-count">
+        已选择 <strong>${selectedInternalWallets.size}</strong> 个钱包作为接收方
+      </div>
+      <div class="selection-actions">
+        <button class="selection-btn" onclick="selectAllInternalWallets()">全选</button>
+        <button class="selection-btn" onclick="clearInternalWalletSelection()">清除</button>
+      </div>
+    `;
+  } else if (selectionInfo) {
+    selectionInfo.remove();
+  }
+};
+
+// 添加全选功能
+window.selectAllInternalWallets = () => {
+  if (!internalWalletGrid) return;
+  
+  internalWalletGrid.querySelectorAll('.internal-wallet-item').forEach(item => {
+    const checkbox = item.querySelector('.internal-wallet-select');
+    const address = item.dataset.address;
+    
+    if (!checkbox.checked) {
+      checkbox.checked = true;
+      updateInternalWalletSelection(address, true);
+    }
+  });
+};
+
+// 添加清除选择功能
+window.clearInternalWalletSelection = () => {
+  if (!internalWalletGrid) return;
+  
+  internalWalletGrid.querySelectorAll('.internal-wallet-item').forEach(item => {
+    const checkbox = item.querySelector('.internal-wallet-select');
+    const address = item.dataset.address;
+    
+    if (checkbox.checked) {
+      checkbox.checked = false;
+      updateInternalWalletSelection(address, false);
+    }
+  });
+};
+
+// 添加复制地址功能
+window.copyAddress = (address, btn) => {
+  navigator.clipboard.writeText(address).then(() => {
+    const originalText = btn.textContent;
+    btn.textContent = '✅';
+    setTimeout(() => {
+      btn.textContent = originalText;
+    }, 2000);
+  }).catch(() => {
+    alert(`请手动复制: ${address}`);
+  });
+};
+
+// 更新选择状态函数
 const updateInternalWalletSelection = (address, isSelected) => {
   const item = internalWalletGrid.querySelector(`[data-address="${address}"]`);
   
@@ -921,6 +1015,9 @@ const updateInternalWalletSelection = (address, isSelected) => {
     selectedInternalWallets.delete(address);
     if (item) item.classList.remove('selected');
   }
+  
+  // 更新选择信息
+  updateInternalSelectionInfo();
 };
 
 /* ---------- 自定义钱包选择器 ---------- */
@@ -1958,3 +2055,15 @@ document.addEventListener('DOMContentLoaded', () => {
   
   console.log('🎉 Solana 工具站初始化完成');
 });
+
+// 设置全局 authFetch 以供其他模块使用
+window.authFetch = authFetch;
+window.alertMsg = alertMsg;
+window.currentRecipientMode = currentRecipientMode;
+window.selectedBatchWallets = selectedBatchWallets;
+window.selectedInternalWallets = selectedInternalWallets;
+window.fromWalletSelectorInstance = fromWalletSelectorInstance;
+window.userWallets = userWallets;
+window.updateSelectedBatchWallets = updateSelectedBatchWallets;
+window.addRecipient = addRecipient;
+window.loadTransferRecords = loadTransferRecords;
